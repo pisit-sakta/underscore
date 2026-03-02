@@ -12,13 +12,7 @@ import { router } from "./api/routes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const errors = validateConfig();
-if (errors.length > 0) {
-  console.error("Configuration errors:");
-  errors.forEach((e) => console.error(`  - ${e}`));
-  console.error("\nCopy .env.example to .env and fill in your API keys.");
-  process.exit(1);
-}
+validateConfig();
 
 const app = express();
 
@@ -28,13 +22,21 @@ app.use(express.static(path.join(__dirname, "..", "public")));
 app.use(router);
 
 app.listen(config.port, () => {
+  const mode = config.demoMode
+    ? "DEMO (no Spotify)"
+    : "Spotify connected";
+  const classifier = config.useMockClassifier
+    ? "Mock classifier"
+    : "Gemini Flash   ";
+
   console.log(`
-  ╔═══════════════════════════════════════╗
-  ║         UNDERSCORE RP v0.1.0          ║
-  ║       "Your stories, scored."         ║
-  ╠═══════════════════════════════════════╣
-  ║  Server:  http://localhost:${config.port}        ║
-  ║  Mode:    ${config.useMockClassifier ? "Mock classifier" : "Gemini 3 Flash "}       ║
-  ╚═══════════════════════════════════════╝
+  ╔═══════════════════════════════════════════╗
+  ║           UNDERSCORE RP v0.1.0            ║
+  ║         "Your stories, scored."           ║
+  ╠═══════════════════════════════════════════╣
+  ║  Server:     http://localhost:${String(config.port).padEnd(13)}║
+  ║  Playback:   ${mode.padEnd(28)}║
+  ║  Classifier: ${classifier.padEnd(28)}║
+  ╚═══════════════════════════════════════════╝
   `);
 });

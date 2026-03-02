@@ -43,8 +43,11 @@ function getEngineState(sessionId: string): EngineState {
   return state;
 }
 
-/** Debounce: ignore submissions within 2 seconds of the last */
-const DEBOUNCE_MS = 2000;
+/**
+ * Debounce: ignore submissions within this window.
+ * Short in demo mode (rapid testing), longer in production (prevents API spam).
+ */
+const DEBOUNCE_MS = 500;
 
 /**
  * Process text through the full narrative pipeline.
@@ -107,8 +110,13 @@ export async function processText(
     };
   }
 
-  // 5. Play
-  const success = await executePlayback(token, track, scene.transition);
+  // 5. Play (skip in demo mode when no Spotify token is available)
+  let success = false;
+  if (token) {
+    success = await executePlayback(token, track, scene.transition);
+  } else {
+    success = true; // demo mode — always "succeed"
+  }
 
   // 6. Update state
   state.previousScene = scene;

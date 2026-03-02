@@ -4,6 +4,9 @@
  *
  * Uses Spotify audio features (energy, valence, tempo) combined with
  * the scene's emotional and narrative requirements.
+ *
+ * In demo mode (no Spotify token), returns simulated matches so the
+ * full pipeline is visible without any API keys.
  */
 import type { SceneClassification, TrackMatch } from "./types.js";
 import type { CachedTrack } from "../auth/session.js";
@@ -46,45 +49,81 @@ const TEMPO_MAP: Record<string, [number, number]> = {
   horror_ambient: [60, 110],
 };
 
+/** Demo-mode track suggestions per scene archetype */
+const DEMO_TRACKS: Record<string, { name: string; artist: string }> = {
+  battle_theme: { name: "Bury the Light", artist: "Casey Edwards" },
+  boss_fight: { name: "The Only Thing They Fear Is You", artist: "Mick Gordon" },
+  pursuit_theme: { name: "Pursuit ~ Cornered", artist: "Ace Attorney OST" },
+  exploration_ambient: { name: "Liyue", artist: "Yu-Peng Chen (HOYO-MiX)" },
+  emotional_piano: { name: "Dearly Beloved", artist: "Yoko Shimomura" },
+  romantic_ballad: { name: "Heavens Divide", artist: "Donna Burke" },
+  ambient: { name: "Ambient Exploration", artist: "Underscore Demo" },
+  victory_fanfare: { name: "Victory Fanfare", artist: "Nobuo Uematsu" },
+  defeat_theme: { name: "Sadness and Sorrow", artist: "Toshio Masuda" },
+  suspense_theme: { name: "Sins of the Father", artist: "Donna Burke" },
+  horror_ambient: { name: "Your Reality (Distorted)", artist: "Dan Salvato" },
+};
+
 /**
  * Match a scene to the best track from the user's library.
  *
  * Special cases:
- * - Careless Whisper Protocol: intimate scenes → search for Careless Whisper
- * - Ace Attorney Rule: dramatic revelations → search for Pursuit/Cornered theme
+ * - Careless Whisper Protocol: intimate scenes → Careless Whisper
+ * - Ace Attorney Rule: dramatic revelations → Pursuit ~ Cornered
+ *
+ * When token is empty (demo mode), returns a simulated match with the
+ * track name the engine *would* play.
  */
 export async function matchSong(
   scene: SceneClassification,
   library: CachedTrack[],
   token: string
 ): Promise<TrackMatch | null> {
+  const isDemo = !token;
+
   // === CARELESS WHISPER PROTOCOL ===
   if (scene.intimateScene) {
-    const careless = await searchTrack(
-      token,
-      "Careless Whisper George Michael"
-    );
+    if (isDemo) {
+      return demoTrack(
+        "Careless Whisper",
+        "George Michael",
+        "Careless Whisper Protocol activated. The saxophone is non-negotiable.",
+        0.7, 0.6, 78
+      );
+    }
+    const careless = await searchTrack(token, "Careless Whisper George Michael");
     if (careless) {
-      careless.matchReason = "Careless Whisper Protocol activated. The saxophone is non-negotiable.";
+      careless.matchReason =
+        "Careless Whisper Protocol activated. The saxophone is non-negotiable.";
       return careless;
     }
   }
 
   // === ACE ATTORNEY EXCEPTION RULE ===
   if (scene.sceneType === "dramatic_revelation") {
-    const pursuit = await searchTrack(
-      token,
-      "Pursuit Cornered Ace Attorney"
-    );
+    if (isDemo) {
+      return demoTrack(
+        "Pursuit ~ Cornered",
+        "Ace Attorney OST",
+        "Ace Attorney Exception Rule: HARD CUT to Pursuit ~ Cornered. This is the law.",
+        0.95, 0.8, 165
+      );
+    }
+    const pursuit = await searchTrack(token, "Pursuit Cornered Ace Attorney");
     if (pursuit) {
-      pursuit.matchReason = "Ace Attorney Exception Rule: HARD CUT to Pursuit ~ Cornered. This is the law.";
+      pursuit.matchReason =
+        "Ace Attorney Exception Rule: HARD CUT to Pursuit ~ Cornered. This is the law.";
       return pursuit;
     }
   }
 
+  // === DEMO MODE ===
+  if (isDemo) {
+    return demoMatchFromScene(scene);
+  }
+
   // === STANDARD MATCHING ===
   if (library.length === 0) {
-    // No library cached — try a Spotify search based on scene criteria
     return searchBySceneCriteria(scene, token);
   }
 
@@ -98,11 +137,9 @@ export async function matchSong(
 
   const best = scored[0];
   if (!best || best.score < 0.1) {
-    // Library has no good match — fall back to search
     return searchBySceneCriteria(scene, token);
   }
 
-  // Track as recently played
   recentlyPlayed.push(best.track.uri);
   if (recentlyPlayed.length > MAX_RECENT) recentlyPlayed.shift();
 
@@ -130,8 +167,8 @@ function scoreTrack(track: CachedTrack, scene: SceneClassification): number {
   score += (1 - energyDiff) * 0.35;
 
   // Valence alignment (0-0.25)
-  const valenceRange = VALENCE_MAP[scene.emotionalRegister] ??
-    VALENCE_MAP["neutral"]!;
+  const valenceRange =
+    VALENCE_MAP[scene.emotionalRegister] ?? VALENCE_MAP["neutral"]!;
   if (track.valence >= valenceRange[0] && track.valence <= valenceRange[1]) {
     score += 0.25;
   } else {
@@ -143,8 +180,8 @@ function scoreTrack(track: CachedTrack, scene: SceneClassification): number {
   }
 
   // Tempo alignment (0-0.2)
-  const tempoRange = TEMPO_MAP[scene.trackCriteria.archetype] ??
-    TEMPO_MAP["ambient"]!;
+  const tempoRange =
+    TEMPO_MAP[scene.trackCriteria.archetype] ?? TEMPO_MAP["ambient"]!;
   if (track.tempo >= tempoRange[0] && track.tempo <= tempoRange[1]) {
     score += 0.2;
   } else {
@@ -184,7 +221,6 @@ async function searchBySceneCriteria(
   scene: SceneClassification,
   token: string
 ): Promise<TrackMatch | null> {
-  // Build a search query from the scene
   const parts: string[] = [];
 
   if (scene.franchise) {
@@ -192,7 +228,6 @@ async function searchBySceneCriteria(
   }
 
   if (scene.trackCriteria.suggestedTracks?.length) {
-    // Try the first suggested track
     const result = await searchTrack(
       token,
       scene.trackCriteria.suggestedTracks[0]
@@ -203,14 +238,66 @@ async function searchBySceneCriteria(
     }
   }
 
-  // Generic search based on archetype
-  const query = parts.length > 0
-    ? parts.join(" ")
-    : `${scene.trackCriteria.mood} ${scene.trackCriteria.archetype}`.replace(/_/g, " ");
+  const query =
+    parts.length > 0
+      ? parts.join(" ")
+      : `${scene.trackCriteria.mood} ${scene.trackCriteria.archetype}`.replace(
+          /_/g,
+          " "
+        );
 
   const result = await searchTrack(token, query);
   if (result) {
     result.matchReason = `Spotify search: "${query}" for scene type ${scene.sceneType}`;
   }
   return result;
+}
+
+/** Create a demo TrackMatch without Spotify */
+function demoTrack(
+  name: string,
+  artist: string,
+  reason: string,
+  energy: number,
+  valence: number,
+  tempo: number
+): TrackMatch {
+  return {
+    spotifyUri: `demo:track:${name.toLowerCase().replace(/\s+/g, "_")}`,
+    trackName: name,
+    artistName: artist,
+    matchReason: `[DEMO] ${reason}`,
+    energy,
+    valence,
+    tempo,
+  };
+}
+
+/** Generate a demo match based on scene archetype */
+function demoMatchFromScene(scene: SceneClassification): TrackMatch {
+  // Check for LLM-suggested tracks first
+  if (scene.trackCriteria.suggestedTracks?.length) {
+    const suggested = scene.trackCriteria.suggestedTracks[0];
+    return demoTrack(
+      suggested,
+      scene.franchise ? `${scene.franchise} OST` : "Suggested by AI",
+      `LLM suggested: "${suggested}" for ${scene.sceneType}`,
+      scene.energyLevel / 10,
+      0.5,
+      120
+    );
+  }
+
+  // Use archetype mapping
+  const archetype = scene.trackCriteria.archetype;
+  const suggestion = DEMO_TRACKS[archetype] ?? DEMO_TRACKS["ambient"]!;
+
+  return demoTrack(
+    suggestion.name,
+    suggestion.artist,
+    `Archetype match: ${archetype} → "${suggestion.name}" for scene ${scene.sceneType}`,
+    scene.energyLevel / 10,
+    0.5,
+    120
+  );
 }

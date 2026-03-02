@@ -67,6 +67,7 @@ export async function classifyScene(
       model: "gemini-2.0-flash",
       contents: userPrompt,
       config: {
+        systemInstruction: SYSTEM_PROMPT,
         responseMimeType: "application/json",
         temperature: 0.3,
       },

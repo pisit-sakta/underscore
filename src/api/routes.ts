@@ -3,6 +3,7 @@
  */
 import { Router, type Request, type Response } from "express";
 import crypto from "node:crypto";
+import { config } from "../core/config.js";
 import {
   getAuthUrl,
   exchangeCode,
@@ -30,6 +31,10 @@ export const router = Router();
 
 /** Start Spotify OAuth flow */
 router.get("/auth/login", (_req: Request, res: Response) => {
+  if (config.demoMode) {
+    res.redirect("/?error=demo_mode");
+    return;
+  }
   const state = crypto.randomUUID();
   const url = getAuthUrl(state);
   res.redirect(url);
@@ -49,16 +54,17 @@ router.get("/callback", async (req: Request, res: Response) => {
     const tokens = await exchangeCode(code);
     const sessionId = createSession(tokens);
 
-    // Set session cookie
     res.cookie("underscore_session", sessionId, {
       httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      maxAge: 24 * 60 * 60 * 1000,
     });
 
-    // Fetch library in background
-    fetchUserLibrary(tokens.accessToken).then((library) => {
-      setLibrary(sessionId, library);
-    });
+    // Fetch library in background (with error handling)
+    fetchUserLibrary(tokens.accessToken)
+      .then((library) => setLibrary(sessionId, library))
+      .catch((err) =>
+        console.error("[auth] Background library fetch failed:", err)
+      );
 
     res.redirect("/?connected=true");
   } catch (err) {
@@ -67,23 +73,33 @@ router.get("/callback", async (req: Request, res: Response) => {
   }
 });
 
-/** Check auth status */
-router.get("/auth/status", async (req: Request, res: Response) => {
+/** Check auth status — also reports demo mode */
+router.get("/auth/status", (req: Request, res: Response) => {
+  if (config.demoMode) {
+    res.json({
+      connected: false,
+      demoMode: true,
+      classifier: config.useMockClassifier ? "mock" : "gemini",
+    });
+    return;
+  }
+
   const sessionId = getSessionId(req);
   if (!sessionId) {
-    res.json({ connected: false });
+    res.json({ connected: false, demoMode: false });
     return;
   }
 
   const session = getSession(sessionId);
   if (!session) {
-    res.json({ connected: false });
+    res.json({ connected: false, demoMode: false });
     return;
   }
 
   const libraryCount = getLibrary(sessionId).length;
   res.json({
     connected: true,
+    demoMode: false,
     libraryLoaded: libraryCount > 0,
     trackCount: libraryCount,
   });
@@ -93,28 +109,50 @@ router.get("/auth/status", async (req: Request, res: Response) => {
 // Core API routes
 // ============================================
 
-/** Submit text for scene classification and playback */
+/**
+ * Submit text for scene classification and playback.
+ *
+ * In demo mode: works without Spotify — returns classification + simulated track.
+ * With Spotify: full pipeline including real playback.
+ */
 router.post("/api/scene", async (req: Request, res: Response) => {
-  const sessionId = getSessionId(req);
-  if (!sessionId) {
-    res.status(401).json({ error: "Not authenticated. Connect Spotify first." });
-    return;
-  }
-
-  const session = getSession(sessionId);
-  if (!session) {
-    res.status(401).json({ error: "Session expired. Please reconnect Spotify." });
-    return;
-  }
-
   const { text } = req.body;
   if (!text || typeof text !== "string") {
     res.status(400).json({ error: "Missing 'text' field in request body." });
     return;
   }
 
+  // === Demo mode: no Spotify needed ===
+  if (config.demoMode) {
+    try {
+      const sessionId = "demo";
+      const result = await processText(sessionId, text, "", []);
+      res.json({ ...result, demoMode: true });
+    } catch (err) {
+      console.error("[api] Demo scene processing failed:", err);
+      res.status(500).json({ error: "Scene processing failed" });
+    }
+    return;
+  }
+
+  // === Full mode: Spotify required ===
+  const sessionId = getSessionId(req);
+  if (!sessionId) {
+    res
+      .status(401)
+      .json({ error: "Not authenticated. Connect Spotify first." });
+    return;
+  }
+
+  const session = getSession(sessionId);
+  if (!session) {
+    res
+      .status(401)
+      .json({ error: "Session expired. Please reconnect Spotify." });
+    return;
+  }
+
   try {
-    // Ensure valid token
     const validTokens = await getValidToken(session.tokens);
     if (validTokens !== session.tokens) {
       updateTokens(sessionId, validTokens);
@@ -128,7 +166,7 @@ router.post("/api/scene", async (req: Request, res: Response) => {
       library
     );
 
-    res.json(result);
+    res.json({ ...result, demoMode: false });
   } catch (err) {
     console.error("[api] Scene processing failed:", err);
     res.status(500).json({ error: "Scene processing failed" });
@@ -137,6 +175,11 @@ router.post("/api/scene", async (req: Request, res: Response) => {
 
 /** Get current playback state */
 router.get("/api/now-playing", async (req: Request, res: Response) => {
+  if (config.demoMode) {
+    res.json({ playing: false, demoMode: true });
+    return;
+  }
+
   const sessionId = getSessionId(req);
   if (!sessionId) {
     res.json({ playing: false });
@@ -162,13 +205,19 @@ router.get("/api/now-playing", async (req: Request, res: Response) => {
         ? { name: current.trackName, artist: current.artistName }
         : null,
     });
-  } catch {
+  } catch (err) {
+    console.error("[api] Now-playing check failed:", err);
     res.json({ playing: false });
   }
 });
 
 /** Get available Spotify devices */
 router.get("/api/devices", async (req: Request, res: Response) => {
+  if (config.demoMode) {
+    res.json({ devices: [], demoMode: true });
+    return;
+  }
+
   const sessionId = getSessionId(req);
   if (!sessionId) {
     res.status(401).json({ error: "Not authenticated" });
@@ -185,7 +234,8 @@ router.get("/api/devices", async (req: Request, res: Response) => {
     const validTokens = await getValidToken(session.tokens);
     const devices = await getDevices(validTokens.accessToken);
     res.json({ devices });
-  } catch {
+  } catch (err) {
+    console.error("[api] Device list failed:", err);
     res.json({ devices: [] });
   }
 });
@@ -195,7 +245,6 @@ router.get("/api/devices", async (req: Request, res: Response) => {
 // ============================================
 
 function getSessionId(req: Request): string | null {
-  // Try cookie first, then header
   const fromCookie = req.cookies?.underscore_session;
   if (fromCookie) return fromCookie;
 

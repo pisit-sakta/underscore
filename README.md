@@ -8,52 +8,106 @@ An AI-powered context-aware life soundtrack platform that automatically plays th
 
 ---
 
-## Three Products. One Engine. Infinite Soundtracks.
+## Quick Start (Underscore RP)
 
-| Product | What It Does | Input |
-|---------|-------------|-------|
-| **Underscore Life** | Scores your daily existence | Phone sensors (GPS, accelerometer, heart rate, weather) |
-| **Underscore Gaming** | Scores your gaming sessions | Game state data (health, kills, round status) |
-| **Underscore RP** | Scores your text stories | LLM conversation text (SillyTavern, Claude, ChatGPT) |
+Works immediately with zero API keys — demo mode runs the full pipeline with simulated playback.
 
-All three share the same core narrative engine (Gemini 3 Flash), the same playback system (Spotify SDK), and the same character profile infrastructure.
+```bash
+npm install
+npm run dev
+# Open http://localhost:3000
+```
+
+That's it. Paste roleplay text, click "Score This Scene", watch the AI classify your scene and select music.
+
+### Optional: Real Playback
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Required? | What It Does |
+|----------|-----------|-------------|
+| `SPOTIFY_CLIENT_ID` | For playback | Enables real Spotify playback (get from [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)) |
+| `SPOTIFY_CLIENT_SECRET` | For playback | Spotify OAuth secret |
+| `GEMINI_API_KEY` | For AI classification | Enables Gemini-powered scene classification (get from [Google AI Studio](https://aistudio.google.com/apikey)). Without it, the mock classifier uses keyword matching. |
+
+### Modes
+
+| Config | Classifier | Playback | Best For |
+|--------|-----------|----------|----------|
+| No `.env` | Mock (keywords) | Simulated | Quick demo, development |
+| `GEMINI_API_KEY` only | Gemini Flash | Simulated | Testing AI classification |
+| All keys set | Gemini Flash | Real Spotify | Full experience |
 
 ---
 
 ## How It Works
 
-1. **Input Layer** — Sensors, game state, or conversation text produce a context signal
-2. **Scene Classifier** — Gemini 3 Flash classifies the moment (narrative beat, emotional register, energy level)
-3. **Song Matcher** — Matches the scene to the perfect track from the user's library using audio features + cultural knowledge
-4. **Playback Controller** — Spotify/Apple Music/YouTube Music plays the track with cinematic transitions
-5. **Learning Layer** — Skips, volume changes, and location patterns refine the soundtrack over time
+```
+Text Input → Parse → Classify → Match → Play
+```
 
-Underscore NEVER touches audio files. We are a remote control. A very smart remote control.
+1. **Text Parser** — Strips OOC markers, detects franchise keywords (Genshin, MGS, Ace Attorney...), extracts character names
+2. **Scene Classifier** — Gemini Flash (or mock) returns scene type, emotional register, energy level, narrative beat
+3. **Song Matcher** — Scores tracks from your Spotify library by energy/valence/tempo alignment, or suggests tracks in demo mode
+4. **Playback Controller** — Plays on Spotify with crossfade/hard-cut transitions
+
+### Special Protocols
+
+- **Careless Whisper Protocol** — Intimate scenes trigger George Michael. The saxophone is non-negotiable.
+- **Ace Attorney Exception Rule** — Dramatic revelations get an immediate hard cut to the Pursuit theme. This is the law.
+
+---
+
+## Project Structure
+
+```
+src/
+  core/
+    types.ts               Shared type definitions
+    config.ts              Environment config
+    scene-classifier.ts    Gemini scene classification
+    mock-classifier.ts     Keyword-based offline fallback
+    song-matcher.ts        Scene → track matching
+    playback-controller.ts Spotify playback control
+    library-cache.ts       User library + audio features
+    narrative-engine.ts    Orchestrator (the full pipeline)
+  rp/
+    text-parser.ts         RP text parsing + franchise detection
+  auth/
+    spotify-auth.ts        Spotify OAuth 2.0
+    session.ts             In-memory session store
+  api/
+    routes.ts              Express API routes
+  index.ts                 Server entry point
+public/
+  index.html               Web UI
+docs/                      Full product documentation
+```
+
+---
+
+## Three Products. One Engine. Infinite Soundtracks.
+
+| Product | What It Does | Input | Status |
+|---------|-------------|-------|--------|
+| **Underscore RP** | Scores your text stories | LLM conversation text | **MVP built** |
+| **Underscore Life** | Scores your daily existence | Phone sensors | Planned |
+| **Underscore Gaming** | Scores your gaming sessions | Game state data | Planned |
 
 ---
 
 ## Documentation
 
-Start with the **[Technical Handoff](./docs/TECHNICAL_HANDOFF.md)** for the complete overview, or jump to a specific area:
-
-### Core
-- [Architecture](./docs/architecture.md) — Narrative engine, LLM layer, streaming integration, tech stack
-- [Underscore Life](./docs/underscore-life.md) — Sensor suite, scene classification, learning system
-- [Underscore Gaming](./docs/underscore-gaming.md) — Game state APIs, clutch scenarios, dynamic layering
+- [Technical Handoff](./docs/TECHNICAL_HANDOFF.md) — Complete product overview
+- [Architecture](./docs/architecture.md) — Core engine, LLM layer, streaming integration
 - [Underscore RP](./docs/underscore-rp.md) — Text parsing, franchise detection, VN scoring
-
-### Features
-- [Character System](./docs/character-system.md) — Pre-built profiles, custom characters, marketplace
+- [Character System](./docs/character-system.md) — Pre-built profiles, custom characters
 - [Careless Whisper Protocol](./docs/careless-whisper-protocol.md) — The saxophone
-
-### Strategy
-- [Sprint Roadmap](./docs/sprint-roadmap.md) — Phases 1-3, Sprints 0-10
-- [Go-To-Market](./docs/go-to-market.md) — Content slate, platform strategy
-- [Business Model](./docs/business-model.md) — Revenue streams, partnerships
-
-### Reference
-- [Brand Guidelines](./docs/brand-guidelines.md) — Voice, terminology, lore
-- [Known Problems](./docs/known-problems.md) — Battery, latency, false positives
+- [Sprint Roadmap](./docs/sprint-roadmap.md) — Development plan
+- [Go-To-Market](./docs/go-to-market.md) — Content strategy
+- [Business Model](./docs/business-model.md) — Revenue streams
 
 ---
 
@@ -61,14 +115,10 @@ Start with the **[Technical Handoff](./docs/TECHNICAL_HANDOFF.md)** for the comp
 
 | Component | Technology |
 |-----------|-----------|
-| Mobile app | React Native or Flutter |
-| Narrative engine | Gemini 3 Flash API |
-| Music playback | Spotify SDK (primary) |
-| Music metadata | Spotify Web API |
-| Weather | OpenWeatherMap API |
-| Backend | Firebase or Supabase |
-| RP extension | JavaScript (browser) |
-| Gaming overlay | Electron or native desktop |
+| Server | Node.js + Express + TypeScript |
+| Narrative engine | Gemini Flash API (`@google/genai`) |
+| Music playback | Spotify Web API |
+| Frontend | Vanilla HTML/CSS/JS |
 
 ---
 
