@@ -4,705 +4,158 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Underscore RP</title>
-  <style>
-    :root {
-      --bg: #0a0a0f;
-      --surface: #14141f;
-      --surface-2: #1e1e2e;
-      --border: #2a2a3e;
-      --text: #e0e0e8;
-      --text-dim: #888899;
-      --accent: #7c5cff;
-      --accent-glow: #7c5cff44;
-      --green: #4ade80;
-      --red: #f87171;
-      --orange: #fb923c;
-      --yellow: #fbbf24;
-    }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    /* ===== Header ===== */
-    header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 24px;
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
-    }
-
-    .logo {
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: 2px;
-    }
-
-    .logo span { color: var(--accent); }
-
-    .status {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 13px;
-      color: var(--text-dim);
-    }
-
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--red);
-    }
-
-    .status-dot.connected { background: var(--green); }
-    .status-dot.demo { background: var(--yellow); }
-
-    .connect-btn {
-      padding: 8px 16px;
-      background: #1DB954;
-      color: white;
-      border: none;
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 600;
-      cursor: pointer;
-      text-decoration: none;
-    }
-
-    .connect-btn:hover { opacity: 0.9; }
-
-    .demo-badge {
-      padding: 4px 10px;
-      background: #fbbf2433;
-      color: var(--yellow);
-      border-radius: 12px;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-
-    /* ===== Main Layout ===== */
-    main {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0;
-      flex: 1;
-      overflow: hidden;
-    }
-
-    @media (max-width: 768px) {
-      main { grid-template-columns: 1fr; }
-    }
-
-    /* ===== Left Panel: Text Input ===== */
-    .input-panel {
-      display: flex;
-      flex-direction: column;
-      border-right: 1px solid var(--border);
-      padding: 20px;
-      gap: 12px;
-    }
-
-    .input-panel h2 {
-      font-size: 14px;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-
-    textarea {
-      flex: 1;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      color: var(--text);
-      font-size: 14px;
-      line-height: 1.6;
-      padding: 16px;
-      resize: none;
-      font-family: inherit;
-      min-height: 200px;
-    }
-
-    textarea:focus {
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px var(--accent-glow);
-    }
-
-    textarea::placeholder { color: var(--text-dim); }
-
-    .score-btn {
-      padding: 12px 24px;
-      background: var(--accent);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-size: 15px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: all 0.15s;
-    }
-
-    .score-btn:hover { opacity: 0.9; transform: translateY(-1px); }
-    .score-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-
-    .demo-links {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .demo-link {
-      font-size: 12px;
-      color: var(--accent);
-      background: var(--accent-glow);
-      border: none;
-      padding: 4px 10px;
-      border-radius: 12px;
-      cursor: pointer;
-    }
-
-    .demo-link:hover { opacity: 0.8; }
-
-    .shortcut-hint {
-      font-size: 11px;
-      color: var(--text-dim);
-      text-align: center;
-    }
-
-    /* ===== Right Panel: Results ===== */
-    .result-panel {
-      display: flex;
-      flex-direction: column;
-      padding: 20px;
-      gap: 16px;
-      overflow-y: auto;
-    }
-
-    .result-panel h2 {
-      font-size: 14px;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-    }
-
-    .scene-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px;
-      display: none;
-    }
-
-    .scene-card.visible { display: block; }
-
-    .scene-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 16px;
-    }
-
-    .scene-type {
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--accent);
-    }
-
-    .energy-bar {
-      display: flex;
-      gap: 3px;
-      align-items: center;
-    }
-
-    .energy-pip {
-      width: 6px;
-      height: 16px;
-      border-radius: 2px;
-      background: var(--border);
-    }
-
-    .energy-pip.active { background: var(--accent); }
-    .energy-pip.high { background: var(--orange); }
-    .energy-pip.max { background: var(--red); }
-
-    .scene-details {
-      display: grid;
-      grid-template-columns: auto 1fr;
-      gap: 6px 16px;
-      font-size: 13px;
-    }
-
-    .scene-label {
-      color: var(--text-dim);
-      font-weight: 500;
-    }
-
-    .scene-value { color: var(--text); }
-
-    .track-card {
-      background: var(--surface-2);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 16px;
-      display: none;
-    }
-
-    .track-card.visible { display: block; }
-
-    .track-name {
-      font-size: 16px;
-      font-weight: 700;
-      margin-bottom: 4px;
-    }
-
-    .track-artist {
-      font-size: 13px;
-      color: var(--text-dim);
-      margin-bottom: 8px;
-    }
-
-    .track-reason {
-      font-size: 12px;
-      color: var(--text-dim);
-      font-style: italic;
-      padding-top: 8px;
-      border-top: 1px solid var(--border);
-    }
-
-    .action-badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 10px;
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      margin-bottom: 12px;
-    }
-
-    .action-badge.play { background: #1DB95433; color: #1DB954; }
-    .action-badge.crossfade { background: var(--accent-glow); color: var(--accent); }
-    .action-badge.hard_cut { background: #f8717133; color: var(--red); }
-    .action-badge.no_change { background: #88889933; color: var(--text-dim); }
-
-    .empty-state {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      flex: 1;
-      color: var(--text-dim);
-      text-align: center;
-      gap: 8px;
-      padding: 40px;
-    }
-
-    .empty-state .icon { font-size: 48px; opacity: 0.3; }
-    .empty-state p { font-size: 14px; line-height: 1.6; }
-
-    /* ===== History log ===== */
-    .history-section {
-      margin-top: 8px;
-      display: none;
-    }
-
-    .history-section.visible { display: block; }
-
-    .history-section h3 {
-      font-size: 12px;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-bottom: 8px;
-    }
-
-    .history-list {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    .history-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 12px;
-      padding: 6px 10px;
-      background: var(--surface);
-      border-radius: 6px;
-      color: var(--text-dim);
-    }
-
-    .history-item .h-scene {
-      color: var(--accent);
-      font-weight: 600;
-      min-width: 140px;
-    }
-
-    .history-item .h-track { color: var(--text); }
-    .history-item .h-energy {
-      margin-left: auto;
-      font-family: monospace;
-      font-size: 11px;
-    }
-
-    /* ===== Now Playing Bar ===== */
-    .now-playing {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 24px;
-      border-top: 1px solid var(--border);
-      background: var(--surface);
-      font-size: 13px;
-    }
-
-    .np-indicator {
-      width: 12px;
-      height: 12px;
-      display: flex;
-      align-items: end;
-      gap: 1px;
-    }
-
-    .np-bar {
-      width: 3px;
-      background: var(--green);
-      border-radius: 1px;
-      animation: np-bounce 0.6s ease-in-out infinite alternate;
-    }
-
-    .np-bar:nth-child(1) { height: 6px; animation-delay: 0s; }
-    .np-bar:nth-child(2) { height: 10px; animation-delay: 0.2s; }
-    .np-bar:nth-child(3) { height: 4px; animation-delay: 0.4s; }
-
-    .np-hidden { display: none; }
-
-    @keyframes np-bounce {
-      to { height: 3px; }
-    }
-
-    .np-track { font-weight: 600; }
-    .np-artist { color: var(--text-dim); }
-  </style>
+  <meta name="description" content="AI-powered context-aware soundtrack for your roleplay sessions.">
+  <meta name="theme-color" content="#07070c">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-  <header>
-    <div class="logo"><span>_</span>UNDERSCORE RP</div>
-    <div class="status">
-      <div class="status-dot" id="statusDot"></div>
-      <span id="statusText">Checking...</span>
-      <span class="demo-badge" id="demoBadge" style="display:none">DEMO MODE</span>
-      <a href="/auth/login" class="connect-btn" id="connectBtn" style="display:none">Connect Spotify</a>
+
+  <!-- ═══════ Header ═══════ -->
+  <header class="header">
+    <div class="header__logo">
+      <span class="header__logo-mark">_</span>
+      <span class="header__logo-text">UNDERSCORE</span>
+      <span class="header__logo-sub">RP</span>
+    </div>
+    <div class="header__controls">
+      <div class="header__status">
+        <span class="status-dot js-status-dot"></span>
+        <span class="js-status-text">Connecting&hellip;</span>
+        <span class="badge badge--demo hidden js-badge-demo">Demo</span>
+        <span class="badge badge--mock hidden js-badge-classifier">Mock</span>
+      </div>
+      <a href="/auth/login" class="btn-spotify hidden js-connect-btn">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+        Connect Spotify
+      </a>
     </div>
   </header>
 
-  <main>
-    <div class="input-panel">
-      <h2>Roleplay Text</h2>
-      <div class="demo-links">
-        <button class="demo-link" onclick="loadDemo('genshin')">Genshin Impact</button>
-        <button class="demo-link" onclick="loadDemo('combat')">Combat</button>
-        <button class="demo-link" onclick="loadDemo('ace')">Ace Attorney</button>
-        <button class="demo-link" onclick="loadDemo('horror')">Horror VN</button>
-        <button class="demo-link" onclick="loadDemo('emotional')">Emotional</button>
+  <!-- ═══════ App ═══════ -->
+  <main class="app">
+
+    <!-- ── Input Panel ── -->
+    <section class="panel panel--input">
+      <h2 class="panel__title">Roleplay Text</h2>
+
+      <nav class="snippets js-snippets" aria-label="Demo snippets">
+        <!-- Populated by JS -->
+      </nav>
+
+      <div class="textarea-wrap">
+        <textarea
+          class="textarea js-textarea"
+          placeholder="Paste your roleplay text here&#10;&#10;The AI will classify the scene and pick the perfect track.&#10;&#10;Try the demo snippets above, or write your own."
+          aria-label="Roleplay text input"
+        ></textarea>
       </div>
-      <textarea
-        id="textInput"
-        placeholder="Paste your roleplay text here...
 
-The AI will classify the scene and suggest the perfect soundtrack.
-
-Try the demo snippets above, or write your own!"
-      ></textarea>
-      <button class="score-btn" id="scoreBtn" onclick="scoreScene()">
-        Score This Scene
+      <button class="btn-score js-btn-score" type="button">
+        <span class="btn-score__spinner"></span>
+        <span class="btn-score__label">Score This Scene</span>
       </button>
-      <div class="shortcut-hint">Ctrl+Enter to score</div>
-    </div>
 
-    <div class="result-panel">
-      <h2>Scene Analysis</h2>
+      <div class="shortcut-hint">
+        <kbd>Ctrl</kbd> + <kbd>Enter</kbd> to score
+      </div>
+    </section>
 
-      <div class="scene-card" id="sceneCard">
-        <div class="scene-header">
-          <div class="scene-type" id="sceneType"></div>
-          <div class="energy-bar" id="energyBar"></div>
+    <!-- ── Results Panel ── -->
+    <section class="panel panel--results">
+      <h2 class="panel__title">Scene Analysis</h2>
+
+      <!-- Empty state -->
+      <div class="empty-state js-empty-state">
+        <div class="empty-state__icon" aria-hidden="true">&#127925;</div>
+        <div class="empty-state__title">No scene scored yet</div>
+        <p class="empty-state__desc">
+          Paste roleplay text and click "Score This Scene"
+          to see the AI classify your scene and select music.
+        </p>
+      </div>
+
+      <!-- Scene Card -->
+      <div class="card card--hidden js-scene-card">
+        <div class="scene-card__header">
+          <span class="scene-card__type js-scene-type"></span>
+          <span class="scene-card__franchise hidden js-scene-franchise"></span>
         </div>
-        <div class="scene-details">
-          <span class="scene-label">Franchise</span>
-          <span class="scene-value" id="sceneFranchise">&mdash;</span>
-          <span class="scene-label">Emotion</span>
-          <span class="scene-value" id="sceneEmotion">&mdash;</span>
-          <span class="scene-label">Beat</span>
-          <span class="scene-value" id="sceneBeat">&mdash;</span>
-          <span class="scene-label">Combat</span>
-          <span class="scene-value" id="sceneCombat">&mdash;</span>
-          <span class="scene-label">Mood</span>
-          <span class="scene-value" id="sceneMood">&mdash;</span>
-          <span class="scene-label">Archetype</span>
-          <span class="scene-value" id="sceneArchetype">&mdash;</span>
+        <div class="scene-card__body">
+          <div class="energy">
+            <span class="energy__label">Energy</span>
+            <div class="energy__bar js-energy-bar"></div>
+            <span class="energy__value js-energy-value">0/10</span>
+          </div>
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-item__label">Emotion</span>
+              <span class="detail-item__value js-detail-emotion">&mdash;</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">Narrative Beat</span>
+              <span class="detail-item__value js-detail-beat">&mdash;</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">Combat</span>
+              <span class="detail-item__value js-detail-combat">&mdash;</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">Mood</span>
+              <span class="detail-item__value js-detail-mood">&mdash;</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">Archetype</span>
+              <span class="detail-item__value js-detail-archetype">&mdash;</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">Intimate</span>
+              <span class="detail-item__value js-detail-intimate">&mdash;</span>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="track-card" id="trackCard">
-        <div class="action-badge" id="actionBadge"></div>
-        <div class="track-name" id="trackName">&mdash;</div>
-        <div class="track-artist" id="trackArtist">&mdash;</div>
-        <div class="track-reason" id="trackReason">&mdash;</div>
+      <!-- Track Card -->
+      <div class="card card--hidden js-track-card">
+        <div class="track-card">
+          <div class="track-card__art">
+            <span class="track-card__art-icon js-track-art-icon">&#9654;</span>
+          </div>
+          <div class="track-card__info">
+            <div class="track-card__name js-track-name">&mdash;</div>
+            <div class="track-card__artist js-track-artist">&mdash;</div>
+            <div class="track-card__reason js-track-reason"></div>
+          </div>
+          <div class="track-card__action">
+            <span class="action-badge action-badge--play js-action-badge">Play</span>
+          </div>
+        </div>
       </div>
 
-      <div class="empty-state" id="emptyState">
-        <div class="icon">&#127925;</div>
-        <p>Paste roleplay text and click "Score This Scene"<br>to see the AI classify your scene and select music.</p>
+      <!-- History -->
+      <div class="history history--hidden js-history">
+        <h3 class="history__title">Scene History</h3>
+        <div class="history__list js-history-list"></div>
       </div>
-
-      <div class="history-section" id="historySection">
-        <h3>Scene History</h3>
-        <div class="history-list" id="historyList"></div>
-      </div>
-    </div>
+    </section>
   </main>
 
-  <div class="now-playing">
-    <div class="np-indicator np-hidden" id="npIndicator">
-      <div class="np-bar"></div>
-      <div class="np-bar"></div>
-      <div class="np-bar"></div>
+  <!-- ═══════ Now Playing ═══════ -->
+  <footer class="now-playing">
+    <div class="now-playing__eq now-playing__eq--hidden js-np-eq">
+      <div class="eq-bar"></div>
+      <div class="eq-bar"></div>
+      <div class="eq-bar"></div>
+      <div class="eq-bar"></div>
     </div>
-    <span class="np-track" id="npTrack">Nothing playing</span>
-    <span class="np-artist" id="npArtist"></span>
-  </div>
+    <span class="now-playing__track hidden js-np-track"></span>
+    <span class="now-playing__artist hidden js-np-artist"></span>
+    <span class="now-playing__empty js-np-empty">Waiting for playback&hellip;</span>
+  </footer>
 
-  <script>
-    const DEMOS = {
-      genshin: `*The Traveler steps through the ancient stone gates of Liyue Harbor for the first time. The golden light of the setting sun catches the jade-colored rooftops, and the scent of glaze lilies fills the evening air.*\n\nZhongli: "Welcome to Liyue Harbor, Traveler. This city has stood for thousands of years, built on contracts and the will of the Geo Archon. Every stone here has a story."\n\n*He pauses at the railing overlooking the harbor, the ships below catching the last rays of sunset.*\n\nZhongli: "I sense you carry many questions. Walk with me \u2014 I know a tea house where we might speak freely."`,
-
-      combat: `*The dragon roars, shaking the very foundations of the cavern. Stalactites crash down around you as the beast rears back, flames already building in its throat.*\n\n"MOVE!" your companion screams, shoving you aside as a torrent of fire engulfs where you stood moments ago.\n\n*You roll to your feet, sword drawn, and charge. The dragon's massive claw sweeps toward you \u2014 you dodge under it by inches, feeling the wind of its passing, and drive your blade into the gap between its scales. The beast SHRIEKS.*\n\n*Blood. Yours and the dragon's. The fight is far from over.*`,
-
-      ace: `Phoenix Wright: "Your Honor, the witness claims they were at home at 9 PM on the night of the murder. But I have evidence that PROVES otherwise!"\n\n*slams desk*\n\n"OBJECTION! This receipt shows the witness purchased coffee at the cafe across from the crime scene \u2014 at 9:07 PM! The exact time of the murder!"\n\n*The courtroom erupts in murmurs. The witness's face goes pale.*\n\n"The witness LIED about their alibi. Because they were THERE. At the scene. When it happened!"`,
-
-      horror: `*The chat window flickers for a moment. Just a brief stutter \u2014 probably your connection. Monika smiles at you from across the screen.*\n\nMonika: "Hey, did you notice something weird just now? No? ...Probably nothing. Let's keep talking!"\n\n*But as you scroll back through the conversation, some of the earlier messages look... different. Words are rearranged. Letters are missing. One of Sayori's messages now just reads: "H E L P M E" with each letter on a separate line.*\n\n*Monika's expression hasn't changed. She's still smiling. But the background behind her is darker now. Was it always that dark?*\n\nMonika: "You're the only real one here. You know that, right?"`,
-
-      emotional: `*She stands at the train platform, her back to you. The rain has soaked through her jacket but she doesn't seem to notice. The train is already approaching.*\n\n"I'm not asking you to choose," she says, her voice barely audible over the rain. "I already know the answer."\n\n*She turns, and you see she's been crying \u2014 or maybe it's just the rain. You can't tell anymore. You never could tell with her.*\n\n"Goodbye. Thank you for the time we had."\n\n*The train doors open. She steps in without looking back. The doors close. And she's gone.*`
-    };
-
-    let isDemoMode = false;
-    const sceneHistory = [];
-
-    // Check auth status on load
-    async function checkStatus() {
-      try {
-        const res = await fetch('/auth/status');
-        const data = await res.json();
-        const dot = document.getElementById('statusDot');
-        const text = document.getElementById('statusText');
-        const btn = document.getElementById('connectBtn');
-        const badge = document.getElementById('demoBadge');
-
-        if (data.demoMode) {
-          isDemoMode = true;
-          dot.classList.add('demo');
-          badge.style.display = 'inline';
-          btn.style.display = 'none';
-          text.textContent = data.classifier === 'gemini'
-            ? 'Gemini classifier active'
-            : 'Mock classifier (no Gemini key)';
-        } else if (data.connected) {
-          dot.classList.add('connected');
-          btn.style.display = 'none';
-          badge.style.display = 'none';
-          text.textContent = data.libraryLoaded
-            ? `Connected (${data.trackCount} tracks)`
-            : 'Connected (loading library...)';
-        } else {
-          btn.style.display = 'inline';
-          badge.style.display = 'none';
-          text.textContent = 'Not connected';
-        }
-      } catch (e) {
-        document.getElementById('statusText').textContent = 'Server unavailable';
-      }
-    }
-
-    function loadDemo(key) {
-      const el = document.getElementById('textInput');
-      if (el) el.value = DEMOS[key] || '';
-    }
-
-    async function scoreScene() {
-      const btn = document.getElementById('scoreBtn');
-      const textEl = document.getElementById('textInput');
-      const text = textEl ? textEl.value.trim() : '';
-      if (!text) return;
-
-      btn.disabled = true;
-      btn.textContent = 'Scoring...';
-
-      try {
-        const res = await fetch('/api/scene', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text }),
-        });
-
-        if (res.status === 401) {
-          alert('Connect Spotify first! Click the green button in the top right.');
-          return;
-        }
-
-        const data = await res.json();
-        if (data.error) {
-          alert(data.error);
-          return;
-        }
-
-        displayResult(data);
-      } catch (err) {
-        console.error('Score failed:', err);
-        alert('Failed to score scene. Is the server running?');
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Score This Scene';
-      }
-    }
-
-    function displayResult(data) {
-      document.getElementById('emptyState').style.display = 'none';
-
-      // Scene card
-      const sceneCard = document.getElementById('sceneCard');
-      sceneCard.classList.add('visible');
-
-      const sceneType = data.scene.sceneType.replace(/_/g, ' ').toUpperCase();
-      document.getElementById('sceneType').textContent = sceneType;
-      document.getElementById('sceneFranchise').textContent =
-        data.scene.franchise || 'Original / Unknown';
-      document.getElementById('sceneEmotion').textContent =
-        data.scene.emotionalRegister.replace(/_/g, ' ');
-      document.getElementById('sceneBeat').textContent =
-        data.scene.narrativeBeat.replace(/_/g, ' ');
-      document.getElementById('sceneCombat').textContent =
-        data.scene.combatStatus;
-      document.getElementById('sceneMood').textContent =
-        data.scene.trackCriteria.mood.replace(/_/g, ' ');
-      document.getElementById('sceneArchetype').textContent =
-        data.scene.trackCriteria.archetype.replace(/_/g, ' ');
-
-      // Energy bar
-      const bar = document.getElementById('energyBar');
-      bar.innerHTML = '';
-      for (let i = 1; i <= 10; i++) {
-        const pip = document.createElement('div');
-        pip.className = 'energy-pip';
-        if (i <= data.scene.energyLevel) {
-          pip.classList.add(i >= 9 ? 'max' : i >= 7 ? 'high' : 'active');
-        }
-        bar.appendChild(pip);
-      }
-
-      // Track card
-      const trackCard = document.getElementById('trackCard');
-      const badge = document.getElementById('actionBadge');
-
-      if (data.selectedTrack) {
-        trackCard.classList.add('visible');
-        badge.textContent = data.playbackAction;
-        badge.className = `action-badge ${data.playbackAction}`;
-        document.getElementById('trackName').textContent = data.selectedTrack.trackName;
-        document.getElementById('trackArtist').textContent = data.selectedTrack.artistName;
-        document.getElementById('trackReason').textContent = data.reasoning;
-      } else {
-        trackCard.classList.remove('visible');
-      }
-
-      // Add to history
-      addToHistory(data);
-    }
-
-    function addToHistory(data) {
-      const section = document.getElementById('historySection');
-      const list = document.getElementById('historyList');
-      section.classList.add('visible');
-
-      const item = document.createElement('div');
-      item.className = 'history-item';
-
-      const sceneLabel = data.scene.sceneType.replace(/_/g, ' ');
-      const trackLabel = data.selectedTrack
-        ? `${data.selectedTrack.trackName} \u2014 ${data.selectedTrack.artistName}`
-        : 'No track';
-      const energyLabel = '\u26A1'.repeat(Math.min(data.scene.energyLevel, 10));
-
-      item.innerHTML = `<span class="h-scene">${sceneLabel}</span><span class="h-track">${trackLabel}</span><span class="h-energy">${energyLabel}</span>`;
-
-      // Insert at top
-      list.insertBefore(item, list.firstChild);
-
-      // Keep max 20 items
-      while (list.children.length > 20) {
-        list.removeChild(list.lastChild);
-      }
-    }
-
-    // Poll now-playing every 5 seconds (only when not in demo mode)
-    setInterval(async () => {
-      if (isDemoMode) return;
-      try {
-        const res = await fetch('/api/now-playing');
-        const data = await res.json();
-        const track = document.getElementById('npTrack');
-        const artist = document.getElementById('npArtist');
-        const indicator = document.getElementById('npIndicator');
-
-        if (data.playing && data.track) {
-          track.textContent = data.track.name;
-          artist.textContent = ` \u2014 ${data.track.artist}`;
-          indicator.classList.remove('np-hidden');
-        } else {
-          track.textContent = 'Nothing playing';
-          artist.textContent = '';
-          indicator.classList.add('np-hidden');
-        }
-      } catch {}
-    }, 5000);
-
-    // Keyboard shortcut: Ctrl+Enter to score
-    document.getElementById('textInput').addEventListener('keydown', (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault();
-        scoreScene();
-      }
-    });
-
-    // Init
-    checkStatus();
-
-    // Check URL params
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('connected') === 'true') {
-      checkStatus();
-      window.history.replaceState({}, '', '/');
-    }
-    if (params.get('error')) {
-      const err = params.get('error');
-      if (err !== 'demo_mode') {
-        alert('Spotify connection failed: ' + err);
-      }
-      window.history.replaceState({}, '', '/');
-    }
-  </script>
+  <script type="module" src="/js/app.js"></script>
 </body>
 </html>
