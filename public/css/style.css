@@ -104,6 +104,32 @@ body {
   gap: 12px;
 }
 
+.mode-switch {
+  display: flex;
+  gap: 2px;
+  background: var(--surface-2);
+  border-radius: var(--radius-xl);
+  padding: 2px;
+}
+.mode-switch__btn {
+  padding: 5px 14px;
+  border: none;
+  border-radius: var(--radius-xl);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all var(--transition);
+}
+.mode-switch__btn:hover { color: var(--text); }
+.mode-switch__btn--active {
+  background: var(--accent);
+  color: white;
+}
+
 .header__status {
   display: flex;
   align-items: center;

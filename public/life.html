@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Underscore Life</title>
+  <meta name="description" content="AI-powered context-aware soundtrack for your day.">
+  <meta name="theme-color" content="#07070c">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    /* ═══ Life-specific styles ═══ */
+
+    /* ── Mode Switcher ── */
+    .mode-switch {
+      display: flex;
+      gap: 2px;
+      background: var(--surface-2);
+      border-radius: var(--radius-xl);
+      padding: 2px;
+    }
+    .mode-switch__btn {
+      padding: 5px 14px;
+      border: none;
+      border-radius: var(--radius-xl);
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 12px;
+      font-weight: 600;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      text-decoration: none;
+      transition: all var(--transition);
+    }
+    .mode-switch__btn:hover { color: var(--text); }
+    .mode-switch__btn--active {
+      background: var(--accent);
+      color: white;
+    }
+
+    /* ── Preset Grid ── */
+    .preset-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 8px;
+    }
+    .preset-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 14px 8px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      font-family: var(--font-sans);
+      transition: all var(--transition);
+    }
+    .preset-card:hover {
+      border-color: var(--accent);
+      background: var(--surface-2);
+      transform: translateY(-2px);
+    }
+    .preset-card--active {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    .preset-card__emoji { font-size: 24px; line-height: 1; }
+    .preset-card__label { font-size: 11px; font-weight: 600; color: var(--text-mid); }
+
+    /* ── Pill Selectors ── */
+    .pill-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .pill {
+      padding: 5px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      background: var(--surface);
+      color: var(--text-mid);
+      font-size: 12px;
+      font-weight: 500;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .pill:hover { border-color: var(--border-light); color: var(--text); }
+    .pill--active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    /* ── Section Labels ── */
+    .section-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 6px;
+    }
+
+    .input-sections {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* ── Free text ── */
+    .freetext {
+      width: 100%;
+      height: 60px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      color: var(--text);
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 10px 14px;
+      resize: none;
+      font-family: var(--font-sans);
+      transition: border-color var(--transition);
+    }
+    .freetext:focus { outline: none; border-color: var(--accent); }
+    .freetext::placeholder { color: var(--text-dim); }
+
+    /* ── Context summary ── */
+    .context-summary {
+      font-size: 13px;
+      color: var(--text-mid);
+      font-style: italic;
+      padding: 8px 12px;
+      background: var(--surface-2);
+      border-radius: var(--radius-sm);
+      margin-bottom: 4px;
+    }
+
+    /* ── Genre tags ── */
+    .detail-item__value--genres {
+      font-size: 12px;
+    }
+
+    @media (max-width: 860px) {
+      .preset-grid {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════ Header ═══════ -->
+  <header class="header">
+    <div class="header__logo">
+      <span class="header__logo-mark">_</span>
+      <span class="header__logo-text">UNDERSCORE</span>
+      <span class="header__logo-sub">LIFE</span>
+    </div>
+    <div class="header__controls">
+      <nav class="mode-switch">
+        <a href="/" class="mode-switch__btn">RP</a>
+        <a href="/life.html" class="mode-switch__btn mode-switch__btn--active">Life</a>
+      </nav>
+      <div class="header__status">
+        <span class="status-dot js-status-dot"></span>
+        <span class="js-status-text">Connecting&hellip;</span>
+        <span class="badge badge--demo hidden js-badge-demo">Demo</span>
+      </div>
+      <a href="/auth/login" class="btn-spotify hidden js-connect-btn">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+        Connect Spotify
+      </a>
+    </div>
+  </header>
+
+  <!-- ═══════ App ═══════ -->
+  <main class="app">
+
+    <!-- ── Input Panel ── -->
+    <section class="panel panel--input">
+      <h2 class="panel__title">What are you doing?</h2>
+
+      <!-- Quick presets -->
+      <div class="preset-grid js-preset-grid">
+        <!-- Populated by JS -->
+      </div>
+
+      <!-- Manual controls -->
+      <div class="input-sections">
+
+        <!-- Activity -->
+        <div>
+          <div class="section-label">Activity</div>
+          <div class="pill-group">
+            <button class="pill js-activity-btn" data-value="working">Working</button>
+            <button class="pill js-activity-btn" data-value="studying">Studying</button>
+            <button class="pill js-activity-btn" data-value="coding">Coding</button>
+            <button class="pill js-activity-btn" data-value="reading">Reading</button>
+            <button class="pill js-activity-btn" data-value="commuting">Commuting</button>
+            <button class="pill js-activity-btn" data-value="walking">Walking</button>
+            <button class="pill js-activity-btn" data-value="driving">Driving</button>
+            <button class="pill js-activity-btn" data-value="running">Running</button>
+            <button class="pill js-activity-btn" data-value="gym">Gym</button>
+            <button class="pill js-activity-btn" data-value="yoga">Yoga</button>
+            <button class="pill js-activity-btn" data-value="hanging_out">Hanging Out</button>
+            <button class="pill js-activity-btn" data-value="party">Party</button>
+            <button class="pill js-activity-btn" data-value="date_night">Date Night</button>
+            <button class="pill js-activity-btn" data-value="cooking">Cooking</button>
+            <button class="pill js-activity-btn" data-value="cleaning">Cleaning</button>
+            <button class="pill js-activity-btn" data-value="relaxing">Relaxing</button>
+            <button class="pill js-activity-btn" data-value="meditating">Meditating</button>
+            <button class="pill js-activity-btn" data-value="waking_up">Waking Up</button>
+            <button class="pill js-activity-btn" data-value="winding_down">Winding Down</button>
+            <button class="pill js-activity-btn" data-value="creating">Creating</button>
+            <button class="pill js-activity-btn" data-value="gaming">Gaming</button>
+          </div>
+        </div>
+
+        <!-- Mood -->
+        <div>
+          <div class="section-label">Mood <span style="color:var(--text-dim);font-weight:400">(optional)</span></div>
+          <div class="pill-group">
+            <button class="pill js-mood-btn" data-value="happy">Happy</button>
+            <button class="pill js-mood-btn" data-value="chill">Chill</button>
+            <button class="pill js-mood-btn" data-value="focused">Focused</button>
+            <button class="pill js-mood-btn" data-value="energetic">Energetic</button>
+            <button class="pill js-mood-btn" data-value="stressed">Stressed</button>
+            <button class="pill js-mood-btn" data-value="melancholy">Melancholy</button>
+            <button class="pill js-mood-btn" data-value="anxious">Anxious</button>
+            <button class="pill js-mood-btn" data-value="nostalgic">Nostalgic</button>
+            <button class="pill js-mood-btn" data-value="romantic">Romantic</button>
+            <button class="pill js-mood-btn" data-value="angry">Angry</button>
+          </div>
+        </div>
+
+        <!-- Energy -->
+        <div>
+          <div class="section-label">Energy <span style="color:var(--text-dim);font-weight:400">(optional)</span></div>
+          <div class="pill-group">
+            <button class="pill js-energy-btn" data-value="low">Low</button>
+            <button class="pill js-energy-btn" data-value="medium">Medium</button>
+            <button class="pill js-energy-btn" data-value="high">High</button>
+          </div>
+        </div>
+
+        <!-- Free text -->
+        <div>
+          <div class="section-label">Vibe check <span style="color:var(--text-dim);font-weight:400">(optional)</span></div>
+          <textarea
+            class="freetext js-freetext"
+            placeholder="e.g. &quot;grinding leetcode at 2am&quot;, &quot;sunny road trip with friends&quot;"
+          ></textarea>
+        </div>
+      </div>
+
+      <button class="btn-score js-btn-score" type="button">
+        <span class="btn-score__spinner"></span>
+        <span class="btn-score__label">Score My Vibe</span>
+      </button>
+    </section>
+
+    <!-- ── Results Panel ── -->
+    <section class="panel panel--results">
+      <h2 class="panel__title">Your Soundtrack</h2>
+
+      <!-- Empty state -->
+      <div class="empty-state js-empty-state">
+        <div class="empty-state__icon" aria-hidden="true">&#127911;</div>
+        <div class="empty-state__title">Pick a vibe</div>
+        <p class="empty-state__desc">
+          Choose a preset or pick your activity and mood,
+          then hit "Score My Vibe" to get a soundtrack.
+        </p>
+      </div>
+
+      <!-- Scene Card -->
+      <div class="card card--hidden js-scene-card">
+        <div class="scene-card__header">
+          <span class="scene-card__type js-scene-activity"></span>
+          <span class="scene-card__franchise js-scene-style"></span>
+        </div>
+        <div class="scene-card__body">
+          <div class="context-summary js-scene-context"></div>
+
+          <div class="energy">
+            <span class="energy__label">Energy</span>
+            <div class="energy__bar js-energy-bar"></div>
+            <span class="energy__value js-energy-value">0/10</span>
+          </div>
+
+          <div class="detail-grid">
+            <div class="detail-item">
+              <span class="detail-item__label">Mood</span>
+              <span class="detail-item__value js-detail-mood">&mdash;</span>
+            </div>
+            <div class="detail-item">
+              <span class="detail-item__label">Archetype</span>
+              <span class="detail-item__value js-detail-archetype">&mdash;</span>
+            </div>
+            <div class="detail-item" style="grid-column: 1 / -1;">
+              <span class="detail-item__label">Preferred Genres</span>
+              <span class="detail-item__value detail-item__value--genres js-detail-genres">&mdash;</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Track Card -->
+      <div class="card card--hidden js-track-card">
+        <div class="track-card">
+          <div class="track-card__art">
+            <span class="track-card__art-icon">&#9654;</span>
+          </div>
+          <div class="track-card__info">
+            <div class="track-card__name js-track-name">&mdash;</div>
+            <div class="track-card__artist js-track-artist">&mdash;</div>
+            <div class="track-card__reason js-track-reason"></div>
+          </div>
+          <div class="track-card__action">
+            <span class="action-badge action-badge--play">Play</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- History -->
+      <div class="history history--hidden js-history">
+        <h3 class="history__title">Session History</h3>
+        <div class="history__list js-history-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ═══════ Now Playing ═══════ -->
+  <footer class="now-playing">
+    <div class="now-playing__eq now-playing__eq--hidden js-np-eq">
+      <div class="eq-bar"></div>
+      <div class="eq-bar"></div>
+      <div class="eq-bar"></div>
+      <div class="eq-bar"></div>
+    </div>
+    <span class="now-playing__track hidden js-np-track"></span>
+    <span class="now-playing__artist hidden js-np-artist"></span>
+    <span class="now-playing__empty js-np-empty">Waiting for playback&hellip;</span>
+  </footer>
+
+  <script type="module" src="/js/life-app.js"></script>
+</body>
+</html>

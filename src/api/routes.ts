@@ -1,5 +1,5 @@
 /**
- * API routes for Underscore RP.
+ * API routes for Underscore RP + Life.
  */
 import { Router, type Request, type Response } from "express";
 import crypto from "node:crypto";
@@ -22,6 +22,8 @@ import {
   getCurrentlyPlaying,
   getDevices,
 } from "../core/playback-controller.js";
+import { processLifeInput } from "../life/life-engine.js";
+import { LIFE_PRESETS } from "../life/presets.js";
 
 export const router = Router();
 
@@ -237,6 +239,73 @@ router.get("/api/devices", async (req: Request, res: Response) => {
   } catch (err) {
     console.error("[api] Device list failed:", err);
     res.json({ devices: [] });
+  }
+});
+
+// ============================================
+// Life mode routes
+// ============================================
+
+/** Get available presets */
+router.get("/api/life/presets", (_req: Request, res: Response) => {
+  res.json({ presets: LIFE_PRESETS });
+});
+
+/**
+ * Score a life context and pick a track.
+ *
+ * Body: { activity, mood?, energy?, timeOfDay?, freeText? }
+ */
+router.post("/api/life/score", async (req: Request, res: Response) => {
+  const { activity } = req.body;
+  if (!activity || typeof activity !== "string") {
+    res.status(400).json({ error: "Missing 'activity' field in request body." });
+    return;
+  }
+
+  // === Demo mode ===
+  if (config.demoMode) {
+    try {
+      const result = await processLifeInput("demo-life", req.body, "", []);
+      res.json({ ...result, demoMode: true });
+    } catch (err) {
+      console.error("[api] Life demo scoring failed:", err);
+      res.status(500).json({ error: "Life scoring failed" });
+    }
+    return;
+  }
+
+  // === Full mode ===
+  const sessionId = getSessionId(req);
+  if (!sessionId) {
+    res.status(401).json({ error: "Not authenticated. Connect Spotify first." });
+    return;
+  }
+
+  const session = getSession(sessionId);
+  if (!session) {
+    res.status(401).json({ error: "Session expired. Please reconnect Spotify." });
+    return;
+  }
+
+  try {
+    const validTokens = await getValidToken(session.tokens);
+    if (validTokens !== session.tokens) {
+      updateTokens(sessionId, validTokens);
+    }
+
+    const library = getLibrary(sessionId);
+    const result = await processLifeInput(
+      sessionId,
+      req.body,
+      validTokens.accessToken,
+      library,
+    );
+
+    res.json({ ...result, demoMode: false });
+  } catch (err) {
+    console.error("[api] Life scoring failed:", err);
+    res.status(500).json({ error: "Life scoring failed" });
   }
 });
 
