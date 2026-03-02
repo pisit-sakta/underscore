@@ -20,8 +20,10 @@ export const config = {
 
 export function validateConfig(): string[] {
   const warnings: string[] = [];
+  const isTunnel = process.env.TUNNEL === "true";
 
-  if (config.demoMode) {
+  if (config.demoMode && !isTunnel) {
+    // Developer-facing messages when running npm run dev
     console.warn(
       "[config] DEMO MODE — no Spotify credentials. Scene classification works, playback is simulated."
     );
@@ -30,11 +32,13 @@ export function validateConfig(): string[] {
     );
   }
 
-  if (!config.gemini.apiKey) {
+  if (!config.gemini.apiKey && !isTunnel) {
     console.warn(
       "[config] GEMINI_API_KEY not set — using mock classifier. Set it for real scene classification."
     );
   }
+
+  // In tunnel mode, suppress technical warnings — the user is non-technical
 
   return warnings;
 }
