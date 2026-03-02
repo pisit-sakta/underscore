@@ -1,13 +1,14 @@
 {
-  "name": "underscore-rp",
-  "version": "0.1.0",
-  "description": "AI-powered context-aware soundtrack engine for text roleplay. Your stories, scored.",
+  "name": "underscore",
+  "version": "0.2.0",
+  "description": "AI-powered context-aware soundtrack engine. Your stories, scored. Your day, scored.",
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
     "build": "tsc",
     "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "tunnel": "TUNNEL=true tsx watch src/index.ts"
   },
   "keywords": [
     "music",
@@ -23,7 +24,8 @@
     "@google/genai": "^1.43.0",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.3.1",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "localtunnel": "^2.0.2"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",

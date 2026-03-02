@@ -27,20 +27,38 @@ export interface SpotifyTokens {
   expiresAt: number;
 }
 
-/** Generate the Spotify authorization URL */
-export function getAuthUrl(state: string): string {
+/**
+ * Generate the Spotify authorization URL.
+ *
+ * When an origin is passed (e.g. from a tunnel), uses it for the redirect URI.
+ * Otherwise falls back to the configured SPOTIFY_REDIRECT_URI.
+ */
+export function getAuthUrl(state: string, origin?: string): string {
+  const redirectUri = origin
+    ? `${origin}/callback`
+    : config.spotify.redirectUri;
   const params = new URLSearchParams({
     response_type: "code",
     client_id: config.spotify.clientId,
     scope: SCOPES,
-    redirect_uri: config.spotify.redirectUri,
+    redirect_uri: redirectUri,
     state,
   });
   return `${SPOTIFY_AUTH_URL}?${params}`;
 }
 
-/** Exchange an authorization code for tokens */
-export async function exchangeCode(code: string): Promise<SpotifyTokens> {
+/**
+ * Exchange an authorization code for tokens.
+ *
+ * The redirect URI MUST match what was sent in getAuthUrl().
+ */
+export async function exchangeCode(
+  code: string,
+  origin?: string
+): Promise<SpotifyTokens> {
+  const redirectUri = origin
+    ? `${origin}/callback`
+    : config.spotify.redirectUri;
   const res = await fetch(SPOTIFY_TOKEN_URL, {
     method: "POST",
     headers: {
@@ -52,7 +70,7 @@ export async function exchangeCode(code: string): Promise<SpotifyTokens> {
     body: new URLSearchParams({
       grant_type: "authorization_code",
       code,
-      redirect_uri: config.spotify.redirectUri,
+      redirect_uri: redirectUri,
     }),
   });
 

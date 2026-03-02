@@ -32,13 +32,14 @@ export const router = Router();
 // ============================================
 
 /** Start Spotify OAuth flow */
-router.get("/auth/login", (_req: Request, res: Response) => {
+router.get("/auth/login", (req: Request, res: Response) => {
   if (config.demoMode) {
     res.redirect("/?error=demo_mode");
     return;
   }
   const state = crypto.randomUUID();
-  const url = getAuthUrl(state);
+  const origin = getOrigin(req);
+  const url = getAuthUrl(state, origin);
   res.redirect(url);
 });
 
@@ -53,7 +54,8 @@ router.get("/callback", async (req: Request, res: Response) => {
   }
 
   try {
-    const tokens = await exchangeCode(code);
+    const origin = getOrigin(req);
+    const tokens = await exchangeCode(code, origin);
     const sessionId = createSession(tokens);
 
     res.cookie("underscore_session", sessionId, {
@@ -321,4 +323,24 @@ function getSessionId(req: Request): string | null {
   if (typeof fromHeader === "string") return fromHeader;
 
   return null;
+}
+
+/**
+ * Derive the origin (protocol + host) from the request.
+ * Works through tunnels and reverse proxies via X-Forwarded headers.
+ * Returns undefined when running on plain localhost (uses configured default).
+ */
+function getOrigin(req: Request): string | undefined {
+  const host =
+    (req.headers["x-forwarded-host"] as string) ?? req.headers.host;
+  if (!host) return undefined;
+
+  // If it's localhost, no need to override — the config default works
+  if (host.startsWith("localhost") || host.startsWith("127.0.0.1")) {
+    return undefined;
+  }
+
+  const proto =
+    (req.headers["x-forwarded-proto"] as string) ?? "https";
+  return `${proto}://${host}`;
 }
