@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Maskable: safe zone is inner 80%, so icon centered with padding -->
+  <rect width="512" height="512" fill="#07070c"/>
+  <text x="256" y="310" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-weight="900" font-size="200" fill="#7c5cff">_</text>
+</svg>

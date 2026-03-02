@@ -21,6 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
   loadPresets();
   initControls();
   initScoreButton();
+  initCollapsible();
   startNowPlayingPoll();
 });
 
@@ -354,4 +355,19 @@ function renderNowPlaying(data) {
       ? "Demo mode \u2014 connect Spotify for real playback"
       : "Nothing playing";
   }
+}
+
+// ── Collapsible customize section ──
+
+function initCollapsible() {
+  const toggle = document.querySelector(".js-toggle-customize");
+  const body = document.querySelector(".js-customize-body");
+  const arrow = document.querySelector(".js-toggle-arrow");
+
+  if (!toggle) return;
+
+  toggle.addEventListener("click", () => {
+    const isOpen = body.classList.toggle("section-body--open");
+    arrow.classList.toggle("section-toggle__arrow--open", isOpen);
+  });
 }

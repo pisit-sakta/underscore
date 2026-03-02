@@ -2,156 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
   <title>Underscore Life</title>
-  <meta name="description" content="AI-powered context-aware soundtrack for your day.">
+  <meta name="description" content="Your day, scored. AI-powered context-aware soundtrack.">
   <meta name="theme-color" content="#07070c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="_LIFE">
+  <link rel="apple-touch-icon" href="/icons/icon-192.svg">
+  <link rel="manifest" href="/manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
-  <style>
-    /* ═══ Life-specific styles ═══ */
-
-    /* ── Mode Switcher ── */
-    .mode-switch {
-      display: flex;
-      gap: 2px;
-      background: var(--surface-2);
-      border-radius: var(--radius-xl);
-      padding: 2px;
-    }
-    .mode-switch__btn {
-      padding: 5px 14px;
-      border: none;
-      border-radius: var(--radius-xl);
-      background: transparent;
-      color: var(--text-dim);
-      font-size: 12px;
-      font-weight: 600;
-      font-family: var(--font-sans);
-      cursor: pointer;
-      text-decoration: none;
-      transition: all var(--transition);
-    }
-    .mode-switch__btn:hover { color: var(--text); }
-    .mode-switch__btn--active {
-      background: var(--accent);
-      color: white;
-    }
-
-    /* ── Preset Grid ── */
-    .preset-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-      gap: 8px;
-    }
-    .preset-card {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      padding: 14px 8px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-      cursor: pointer;
-      font-family: var(--font-sans);
-      transition: all var(--transition);
-    }
-    .preset-card:hover {
-      border-color: var(--accent);
-      background: var(--surface-2);
-      transform: translateY(-2px);
-    }
-    .preset-card--active {
-      border-color: var(--accent);
-      background: var(--accent-soft);
-    }
-    .preset-card__emoji { font-size: 24px; line-height: 1; }
-    .preset-card__label { font-size: 11px; font-weight: 600; color: var(--text-mid); }
-
-    /* ── Pill Selectors ── */
-    .pill-group {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-    }
-    .pill {
-      padding: 5px 14px;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-xl);
-      background: var(--surface);
-      color: var(--text-mid);
-      font-size: 12px;
-      font-weight: 500;
-      font-family: var(--font-sans);
-      cursor: pointer;
-      transition: all var(--transition);
-    }
-    .pill:hover { border-color: var(--border-light); color: var(--text); }
-    .pill--active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: white;
-    }
-
-    /* ── Section Labels ── */
-    .section-label {
-      font-size: 10px;
-      font-weight: 600;
-      color: var(--text-dim);
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-      margin-bottom: 6px;
-    }
-
-    .input-sections {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    /* ── Free text ── */
-    .freetext {
-      width: 100%;
-      height: 60px;
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-      color: var(--text);
-      font-size: 13px;
-      line-height: 1.5;
-      padding: 10px 14px;
-      resize: none;
-      font-family: var(--font-sans);
-      transition: border-color var(--transition);
-    }
-    .freetext:focus { outline: none; border-color: var(--accent); }
-    .freetext::placeholder { color: var(--text-dim); }
-
-    /* ── Context summary ── */
-    .context-summary {
-      font-size: 13px;
-      color: var(--text-mid);
-      font-style: italic;
-      padding: 8px 12px;
-      background: var(--surface-2);
-      border-radius: var(--radius-sm);
-      margin-bottom: 4px;
-    }
-
-    /* ── Genre tags ── */
-    .detail-item__value--genres {
-      font-size: 12px;
-    }
-
-    @media (max-width: 860px) {
-      .preset-grid {
-        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-      }
-    }
-  </style>
 </head>
 <body>
 
@@ -179,103 +42,110 @@
     </div>
   </header>
 
-  <!-- ═══════ App ═══════ -->
-  <main class="app">
+  <!-- ═══════ App (single column, mobile-first) ═══════ -->
+  <main class="app app--life">
 
-    <!-- ── Input Panel ── -->
+    <!-- ── Input: presets + controls ── -->
     <section class="panel panel--input">
       <h2 class="panel__title">What are you doing?</h2>
 
-      <!-- Quick presets -->
+      <!-- Quick presets — the main way to use this on mobile -->
       <div class="preset-grid js-preset-grid">
         <!-- Populated by JS -->
       </div>
 
-      <!-- Manual controls -->
-      <div class="input-sections">
+      <!-- Expandable: manual activity/mood/energy -->
+      <div>
+        <button class="section-toggle js-toggle-customize" type="button">
+          <span class="section-label" style="margin-bottom:0">Customize</span>
+          <span class="section-toggle__arrow js-toggle-arrow">&#9654;</span>
+        </button>
+        <div class="section-body js-customize-body">
+          <div class="input-sections">
 
-        <!-- Activity -->
-        <div>
-          <div class="section-label">Activity</div>
-          <div class="pill-group">
-            <button class="pill js-activity-btn" data-value="working">Working</button>
-            <button class="pill js-activity-btn" data-value="studying">Studying</button>
-            <button class="pill js-activity-btn" data-value="coding">Coding</button>
-            <button class="pill js-activity-btn" data-value="reading">Reading</button>
-            <button class="pill js-activity-btn" data-value="commuting">Commuting</button>
-            <button class="pill js-activity-btn" data-value="walking">Walking</button>
-            <button class="pill js-activity-btn" data-value="driving">Driving</button>
-            <button class="pill js-activity-btn" data-value="running">Running</button>
-            <button class="pill js-activity-btn" data-value="gym">Gym</button>
-            <button class="pill js-activity-btn" data-value="yoga">Yoga</button>
-            <button class="pill js-activity-btn" data-value="hanging_out">Hanging Out</button>
-            <button class="pill js-activity-btn" data-value="party">Party</button>
-            <button class="pill js-activity-btn" data-value="date_night">Date Night</button>
-            <button class="pill js-activity-btn" data-value="cooking">Cooking</button>
-            <button class="pill js-activity-btn" data-value="cleaning">Cleaning</button>
-            <button class="pill js-activity-btn" data-value="relaxing">Relaxing</button>
-            <button class="pill js-activity-btn" data-value="meditating">Meditating</button>
-            <button class="pill js-activity-btn" data-value="waking_up">Waking Up</button>
-            <button class="pill js-activity-btn" data-value="winding_down">Winding Down</button>
-            <button class="pill js-activity-btn" data-value="creating">Creating</button>
-            <button class="pill js-activity-btn" data-value="gaming">Gaming</button>
+            <!-- Activity -->
+            <div>
+              <div class="section-label">Activity</div>
+              <div class="pill-group">
+                <button class="pill js-activity-btn" data-value="working">Working</button>
+                <button class="pill js-activity-btn" data-value="studying">Studying</button>
+                <button class="pill js-activity-btn" data-value="coding">Coding</button>
+                <button class="pill js-activity-btn" data-value="reading">Reading</button>
+                <button class="pill js-activity-btn" data-value="commuting">Commuting</button>
+                <button class="pill js-activity-btn" data-value="walking">Walking</button>
+                <button class="pill js-activity-btn" data-value="driving">Driving</button>
+                <button class="pill js-activity-btn" data-value="running">Running</button>
+                <button class="pill js-activity-btn" data-value="gym">Gym</button>
+                <button class="pill js-activity-btn" data-value="yoga">Yoga</button>
+                <button class="pill js-activity-btn" data-value="hanging_out">Hanging Out</button>
+                <button class="pill js-activity-btn" data-value="party">Party</button>
+                <button class="pill js-activity-btn" data-value="date_night">Date Night</button>
+                <button class="pill js-activity-btn" data-value="cooking">Cooking</button>
+                <button class="pill js-activity-btn" data-value="cleaning">Cleaning</button>
+                <button class="pill js-activity-btn" data-value="relaxing">Relaxing</button>
+                <button class="pill js-activity-btn" data-value="meditating">Meditating</button>
+                <button class="pill js-activity-btn" data-value="waking_up">Waking Up</button>
+                <button class="pill js-activity-btn" data-value="winding_down">Winding Down</button>
+                <button class="pill js-activity-btn" data-value="creating">Creating</button>
+                <button class="pill js-activity-btn" data-value="gaming">Gaming</button>
+              </div>
+            </div>
+
+            <!-- Mood -->
+            <div>
+              <div class="section-label">Mood</div>
+              <div class="pill-group">
+                <button class="pill js-mood-btn" data-value="happy">Happy</button>
+                <button class="pill js-mood-btn" data-value="chill">Chill</button>
+                <button class="pill js-mood-btn" data-value="focused">Focused</button>
+                <button class="pill js-mood-btn" data-value="energetic">Energetic</button>
+                <button class="pill js-mood-btn" data-value="stressed">Stressed</button>
+                <button class="pill js-mood-btn" data-value="melancholy">Melancholy</button>
+                <button class="pill js-mood-btn" data-value="anxious">Anxious</button>
+                <button class="pill js-mood-btn" data-value="nostalgic">Nostalgic</button>
+                <button class="pill js-mood-btn" data-value="romantic">Romantic</button>
+                <button class="pill js-mood-btn" data-value="angry">Angry</button>
+              </div>
+            </div>
+
+            <!-- Energy -->
+            <div>
+              <div class="section-label">Energy</div>
+              <div class="pill-group">
+                <button class="pill js-energy-btn" data-value="low">Low</button>
+                <button class="pill js-energy-btn" data-value="medium">Medium</button>
+                <button class="pill js-energy-btn" data-value="high">High</button>
+              </div>
+            </div>
+
+            <!-- Free text -->
+            <div>
+              <div class="section-label">Vibe check</div>
+              <textarea
+                class="freetext js-freetext"
+                placeholder='e.g. "grinding leetcode at 2am"'
+              ></textarea>
+            </div>
+
+            <button class="btn-score js-btn-score" type="button">
+              <span class="btn-score__spinner"></span>
+              <span class="btn-score__label">Score My Vibe</span>
+            </button>
           </div>
-        </div>
-
-        <!-- Mood -->
-        <div>
-          <div class="section-label">Mood <span style="color:var(--text-dim);font-weight:400">(optional)</span></div>
-          <div class="pill-group">
-            <button class="pill js-mood-btn" data-value="happy">Happy</button>
-            <button class="pill js-mood-btn" data-value="chill">Chill</button>
-            <button class="pill js-mood-btn" data-value="focused">Focused</button>
-            <button class="pill js-mood-btn" data-value="energetic">Energetic</button>
-            <button class="pill js-mood-btn" data-value="stressed">Stressed</button>
-            <button class="pill js-mood-btn" data-value="melancholy">Melancholy</button>
-            <button class="pill js-mood-btn" data-value="anxious">Anxious</button>
-            <button class="pill js-mood-btn" data-value="nostalgic">Nostalgic</button>
-            <button class="pill js-mood-btn" data-value="romantic">Romantic</button>
-            <button class="pill js-mood-btn" data-value="angry">Angry</button>
-          </div>
-        </div>
-
-        <!-- Energy -->
-        <div>
-          <div class="section-label">Energy <span style="color:var(--text-dim);font-weight:400">(optional)</span></div>
-          <div class="pill-group">
-            <button class="pill js-energy-btn" data-value="low">Low</button>
-            <button class="pill js-energy-btn" data-value="medium">Medium</button>
-            <button class="pill js-energy-btn" data-value="high">High</button>
-          </div>
-        </div>
-
-        <!-- Free text -->
-        <div>
-          <div class="section-label">Vibe check <span style="color:var(--text-dim);font-weight:400">(optional)</span></div>
-          <textarea
-            class="freetext js-freetext"
-            placeholder="e.g. &quot;grinding leetcode at 2am&quot;, &quot;sunny road trip with friends&quot;"
-          ></textarea>
         </div>
       </div>
-
-      <button class="btn-score js-btn-score" type="button">
-        <span class="btn-score__spinner"></span>
-        <span class="btn-score__label">Score My Vibe</span>
-      </button>
     </section>
 
-    <!-- ── Results Panel ── -->
+    <!-- ── Results ── -->
     <section class="panel panel--results">
-      <h2 class="panel__title">Your Soundtrack</h2>
 
       <!-- Empty state -->
       <div class="empty-state js-empty-state">
         <div class="empty-state__icon" aria-hidden="true">&#127911;</div>
-        <div class="empty-state__title">Pick a vibe</div>
+        <div class="empty-state__title">Tap a preset to start</div>
         <p class="empty-state__desc">
-          Choose a preset or pick your activity and mood,
-          then hit "Score My Vibe" to get a soundtrack.
+          Pick what you're doing and get the perfect soundtrack.
+          Or expand "Customize" for fine-grained control.
         </p>
       </div>
 
@@ -305,7 +175,7 @@
             </div>
             <div class="detail-item" style="grid-column: 1 / -1;">
               <span class="detail-item__label">Preferred Genres</span>
-              <span class="detail-item__value detail-item__value--genres js-detail-genres">&mdash;</span>
+              <span class="detail-item__value js-detail-genres">&mdash;</span>
             </div>
           </div>
         </div>
@@ -350,5 +220,11 @@
   </footer>
 
   <script type="module" src="/js/life-app.js"></script>
+  <script>
+    // Register service worker for PWA
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js");
+    }
+  </script>
 </body>
 </html>

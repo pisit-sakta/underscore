@@ -689,6 +689,187 @@ body {
 }
 
 /* ═══════════════════════════════════════════
+   Life Mode
+   ═══════════════════════════════════════════ */
+
+/* ── Mobile-first single-column layout ── */
+.app--life {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr;
+}
+.app--life .panel--input {
+  border-right: none;
+  border-bottom: 1px solid var(--border);
+  max-height: none;
+  overflow-y: visible;
+}
+.app--life .panel--results {
+  overflow-y: auto;
+}
+
+/* ── Preset Grid ── */
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 8px;
+}
+.preset-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  transition: all var(--transition);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.preset-card:hover {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+.preset-card:active {
+  transform: scale(0.96);
+}
+.preset-card--active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+.preset-card__emoji { font-size: 26px; line-height: 1; }
+.preset-card__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-mid);
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* ── Pill Selectors ── */
+.pill-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pill {
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  background: var(--surface);
+  color: var(--text-mid);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all var(--transition);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.pill:active { transform: scale(0.95); }
+.pill--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+/* ── Section Labels ── */
+.section-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 6px;
+}
+
+.input-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Free text ── */
+.freetext {
+  width: 100%;
+  height: 56px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 12px 14px;
+  resize: none;
+  font-family: var(--font-sans);
+  transition: border-color var(--transition);
+}
+.freetext:focus { outline: none; border-color: var(--accent); }
+.freetext::placeholder { color: var(--text-dim); }
+
+/* ── Context summary ── */
+.context-summary {
+  font-size: 13px;
+  color: var(--text-mid);
+  font-style: italic;
+  padding: 8px 12px;
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}
+
+/* ── Collapsible sections ── */
+.section-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+.section-toggle__arrow {
+  font-size: 10px;
+  color: var(--text-dim);
+  transition: transform var(--transition);
+}
+.section-toggle__arrow--open {
+  transform: rotate(90deg);
+}
+.section-body { display: none; padding-top: 6px; }
+.section-body--open { display: block; }
+
+/* ── Life responsive overrides ── */
+@media (max-width: 480px) {
+  .preset-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .pill {
+    padding: 7px 12px;
+    font-size: 12px;
+  }
+}
+@media (min-width: 481px) and (max-width: 860px) {
+  .preset-grid {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+@media (min-width: 861px) {
+  .app--life {
+    max-width: 600px;
+    margin: 0 auto;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+}
+
+/* ═══════════════════════════════════════════
    Scrollbar
    ═══════════════════════════════════════════ */
 ::-webkit-scrollbar { width: 6px; }
