@@ -34,7 +34,7 @@ if (tunnelPin) {
   // This avoids Express 5 route/middleware ordering issues.
   app.use((req, res, next) => {
     // Direct localhost connections (no proxy) bypass PIN.
-    // Localtunnel always sets x-forwarded-for, so its presence
+    // Cloudflare tunnel always sets x-forwarded-for, so its presence
     // means the request came through the tunnel (public internet).
     if (!req.headers["x-forwarded-for"]) {
       return next();
@@ -116,20 +116,16 @@ function getLanIp(): string | null {
 }
 
 /**
- * Start a localtunnel to expose the server publicly.
- * Gives you an https URL that works on cellular.
+ * Start a Cloudflare tunnel to expose the server publicly.
+ * Gives you an https URL that works on cellular — no interstitial page.
  */
 async function startTunnel(lanUrl: string | null): Promise<void> {
   try {
-    const localtunnel = (await import("localtunnel")).default;
+    const { Tunnel } = await import("cloudflared");
+    const tunnel = Tunnel.quick(`http://localhost:${config.port}`);
 
-    const subdomain = process.env.TUNNEL_SUBDOMAIN ?? undefined;
-    const tunnel = await localtunnel({
-      port: config.port,
-      subdomain,
-    });
-
-    const url = tunnel.url;
+    // Wait for the public URL
+    const url: string = await new Promise((resolve) => tunnel.once("url", resolve));
     const lifeUrl = `${url}/life.html`;
 
     console.log(`  Ready! Scan this QR code with your phone camera:\n`);
@@ -148,12 +144,8 @@ async function startTunnel(lanUrl: string | null): Promise<void> {
       printTunnelInfo(lifeUrl, lanUrl);
     }
 
-    tunnel.on("close", () => {
-      console.log("\n  Connection lost. Close this window and double-click Start again.");
-    });
-
-    tunnel.on("error", (err: Error) => {
-      console.error("[tunnel] Error:", err.message);
+    tunnel.on("exit", (code: number | null) => {
+      console.log(`\n  Connection lost (code ${code}). Close this window and double-click Start again.`);
     });
   } catch (err) {
     // Tunnel failed — fall back to LAN instructions
@@ -175,12 +167,11 @@ function printTunnelInfo(lifeUrl: string, lanUrl: string | null): void {
   console.log(`  │                                             │`);
   console.log(`  │  1. Point your phone camera at the QR code  │`);
   console.log(`  │  2. Tap the link that appears               │`);
-  console.log(`  │  3. Tap "Click to Continue" (first time)    │`);
   if (tunnelPin) {
-  console.log(`  │  4. Enter the code: ${tunnelPin}                  │`);
-  console.log(`  │  5. Tap any activity — music plays!         │`);
-  } else {
+  console.log(`  │  3. Enter the code: ${tunnelPin}                  │`);
   console.log(`  │  4. Tap any activity — music plays!         │`);
+  } else {
+  console.log(`  │  3. Tap any activity — music plays!         │`);
   }
   console.log(`  │                                             │`);
   console.log(`  │  Keep this window open while using the app. │`);
