@@ -13,6 +13,14 @@ let selectedActivity = null;
 let selectedMood = null;
 let selectedEnergy = null;
 let isDemoMode = false;
+let hasAI = false;
+
+// Auto-mode state
+let autoModeActive = false;
+let autoInterval = null;
+let autoCountdown = null;
+let autoSecondsLeft = 0;
+const AUTO_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 // ── Init ──
 
@@ -24,6 +32,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initScoreButton();
   initCollapsible();
   initInstallBanner();
+  initSettings();
+  initAutoMode();
   startNowPlayingPoll();
 });
 
@@ -33,6 +43,7 @@ async function initStatus() {
   try {
     const data = await fetchStatus();
     isDemoMode = data.demoMode;
+    hasAI = data.classifier === "gemini" || data.hasGeminiKey;
     renderStatus(data);
   } catch {
     document.querySelector(".js-status-text").textContent = "Server unavailable";
@@ -44,10 +55,12 @@ function renderStatus(data) {
   const text = document.querySelector(".js-status-text");
   const btn = document.querySelector(".js-connect-btn");
   const demoBadge = document.querySelector(".js-badge-demo");
+  const aiBadge = document.querySelector(".js-badge-ai");
 
   dot.className = "status-dot";
   btn.classList.add("hidden");
   demoBadge.classList.add("hidden");
+  if (aiBadge) aiBadge.classList.add("hidden");
 
   if (data.demoMode) {
     dot.classList.add("status-dot--demo");
@@ -61,6 +74,12 @@ function renderStatus(data) {
   } else {
     text.textContent = "Not connected";
     btn.classList.remove("hidden");
+  }
+
+  // Show AI badge when Gemini is active
+  if (aiBadge && (data.classifier === "gemini" || data.hasGeminiKey)) {
+    aiBadge.classList.remove("hidden");
+    hasAI = true;
   }
 }
 
@@ -186,6 +205,18 @@ function initScoreButton() {
   document.querySelector(".js-btn-score").addEventListener("click", handleScore);
 }
 
+/** Get the current time-of-day bucket */
+function getTimeOfDay() {
+  const h = new Date().getHours();
+  if (h < 6)  return "late_night";
+  if (h < 9)  return "early_morning";
+  if (h < 12) return "morning";
+  if (h < 17) return "afternoon";
+  if (h < 21) return "evening";
+  if (h < 24) return "night";
+  return "night";
+}
+
 async function handleScore() {
   if (!selectedActivity) return;
 
@@ -197,6 +228,7 @@ async function handleScore() {
     activity: selectedActivity,
     mood: selectedMood || undefined,
     energy: selectedEnergy || undefined,
+    timeOfDay: getTimeOfDay(),
     freeText: document.querySelector(".js-freetext").value.trim() || undefined,
   };
 
@@ -373,6 +405,170 @@ function initCollapsible() {
     const isOpen = body.classList.toggle("section-body--open");
     arrow.classList.toggle("section-toggle__arrow--open", isOpen);
   });
+}
+
+// ── Settings Modal ──
+
+function initSettings() {
+  const btn = document.querySelector(".js-settings-btn");
+  const modal = document.querySelector(".js-settings-modal");
+  if (!btn || !modal) return;
+
+  // Open
+  btn.addEventListener("click", async () => {
+    modal.classList.remove("hidden");
+    // Load current settings
+    try {
+      const res = await fetch("/api/settings");
+      const data = await res.json();
+      const input = document.querySelector(".js-gemini-key");
+      const status = document.querySelector(".js-key-status");
+      if (data.hasGeminiKey) {
+        input.placeholder = data.geminiKeyHint || "Key configured";
+        status.textContent = "AI classifier active";
+        status.className = "settings-field__status settings-field__status--ok";
+      } else {
+        input.placeholder = "AIza...";
+        status.textContent = "No key set \u2014 using basic mode";
+        status.className = "settings-field__status";
+      }
+    } catch {
+      // ignore
+    }
+  });
+
+  // Close (both backdrop and X button)
+  modal.querySelectorAll(".js-settings-close").forEach((el) => {
+    el.addEventListener("click", () => modal.classList.add("hidden"));
+  });
+
+  // Toggle key visibility
+  const toggleBtn = document.querySelector(".js-toggle-key-vis");
+  if (toggleBtn) {
+    toggleBtn.addEventListener("click", () => {
+      const input = document.querySelector(".js-gemini-key");
+      input.type = input.type === "password" ? "text" : "password";
+    });
+  }
+
+  // Save
+  const saveBtn = document.querySelector(".js-save-settings");
+  if (saveBtn) {
+    saveBtn.addEventListener("click", saveSettings);
+  }
+}
+
+async function saveSettings() {
+  const input = document.querySelector(".js-gemini-key");
+  const status = document.querySelector(".js-key-status");
+  const key = input.value.trim();
+
+  if (!key) {
+    status.textContent = "Enter a key to enable AI";
+    status.className = "settings-field__status settings-field__status--err";
+    return;
+  }
+
+  status.textContent = "Saving...";
+  status.className = "settings-field__status";
+
+  try {
+    const res = await fetch("/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ geminiApiKey: key }),
+    });
+    const data = await res.json();
+
+    if (data.ok) {
+      status.textContent = "Saved! AI classifier is now active.";
+      status.className = "settings-field__status settings-field__status--ok";
+      input.value = "";
+      input.placeholder = `${key.slice(0, 4)}...${key.slice(-4)}`;
+      hasAI = true;
+
+      // Update header badge
+      const aiBadge = document.querySelector(".js-badge-ai");
+      if (aiBadge) aiBadge.classList.remove("hidden");
+
+      // Refresh status
+      initStatus();
+    } else {
+      status.textContent = data.error || "Save failed";
+      status.className = "settings-field__status settings-field__status--err";
+    }
+  } catch {
+    status.textContent = "Network error";
+    status.className = "settings-field__status settings-field__status--err";
+  }
+}
+
+// ── Auto-mode ──
+
+function initAutoMode() {
+  const toggle = document.querySelector(".js-auto-toggle");
+  if (!toggle) return;
+
+  toggle.addEventListener("click", () => {
+    if (autoModeActive) {
+      stopAutoMode();
+    } else {
+      startAutoMode();
+    }
+  });
+}
+
+function startAutoMode() {
+  if (!selectedActivity) {
+    // Need an activity selected first
+    const toggle = document.querySelector(".js-auto-toggle");
+    toggle.style.animation = "shake 0.4s ease";
+    toggle.addEventListener("animationend", () => { toggle.style.animation = ""; }, { once: true });
+    return;
+  }
+
+  autoModeActive = true;
+  const toggle = document.querySelector(".js-auto-toggle");
+  const bar = document.querySelector(".js-auto-bar");
+
+  toggle.classList.add("auto-toggle--active");
+  bar.classList.remove("hidden");
+
+  // Start countdown
+  autoSecondsLeft = AUTO_INTERVAL_MS / 1000;
+  updateAutoTimer();
+  autoCountdown = setInterval(() => {
+    autoSecondsLeft--;
+    if (autoSecondsLeft <= 0) {
+      autoSecondsLeft = AUTO_INTERVAL_MS / 1000;
+    }
+    updateAutoTimer();
+  }, 1000);
+
+  // Auto-score on interval
+  autoInterval = setInterval(() => {
+    handleScore();
+  }, AUTO_INTERVAL_MS);
+}
+
+function stopAutoMode() {
+  autoModeActive = false;
+  const toggle = document.querySelector(".js-auto-toggle");
+  const bar = document.querySelector(".js-auto-bar");
+
+  toggle.classList.remove("auto-toggle--active");
+  bar.classList.add("hidden");
+
+  if (autoInterval) { clearInterval(autoInterval); autoInterval = null; }
+  if (autoCountdown) { clearInterval(autoCountdown); autoCountdown = null; }
+}
+
+function updateAutoTimer() {
+  const timer = document.querySelector(".js-auto-timer");
+  if (!timer) return;
+  const m = Math.floor(autoSecondsLeft / 60);
+  const s = autoSecondsLeft % 60;
+  timer.textContent = `${m}:${String(s).padStart(2, "0")}`;
 }
 
 // ── Welcome overlay (first visit) ──

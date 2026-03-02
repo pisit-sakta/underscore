@@ -8,7 +8,9 @@
  */
 import { parseLifeContext } from "./context-parser.js";
 import { classifyLifeScene } from "./life-classifier.js";
+import { classifyLifeSceneAI } from "./life-ai-classifier.js";
 import { matchLifeTrack } from "./life-matcher.js";
+import { config } from "../core/config.js";
 import { executePlayback } from "../core/playback-controller.js";
 import type { LifeInput, LifeScene, LifeResult } from "./types.js";
 import type { TrackMatch } from "../core/types.js";
@@ -67,8 +69,11 @@ export async function processLifeInput(
   // 1. Parse — fill in missing fields
   const input = parseLifeContext(rawInput);
 
-  // 2. Classify — activity + mood + time → LifeScene
-  const scene = classifyLifeScene(input);
+  // 2. Classify — use AI when Gemini is available, else deterministic
+  const useAI = !config.useMockClassifier;
+  const scene = useAI
+    ? await classifyLifeSceneAI(input)
+    : classifyLifeScene(input);
 
   // 3. Skip transition if scene is basically the same
   if (shouldSkipTransition(state.previousScene, scene)) {

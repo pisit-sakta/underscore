@@ -18,6 +18,12 @@ export const config = {
   demoMode: !process.env.SPOTIFY_CLIENT_ID,
 };
 
+/** Update the Gemini API key at runtime (e.g. from settings UI) */
+export function setGeminiKey(key: string): void {
+  config.gemini.apiKey = key;
+  config.useMockClassifier = !key;
+}
+
 export function validateConfig(): string[] {
   const warnings: string[] = [];
   const isTunnel = process.env.TUNNEL === "true";

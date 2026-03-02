@@ -3,7 +3,9 @@
  */
 import { Router, type Request, type Response } from "express";
 import crypto from "node:crypto";
-import { config } from "../core/config.js";
+import { config, setGeminiKey } from "../core/config.js";
+import { resetGeminiClient } from "../core/scene-classifier.js";
+import { resetLifeAiClient } from "../life/life-ai-classifier.js";
 import {
   getAuthUrl,
   exchangeCode,
@@ -84,6 +86,7 @@ router.get("/auth/status", (req: Request, res: Response) => {
       connected: false,
       demoMode: true,
       classifier: config.useMockClassifier ? "mock" : "gemini",
+      hasGeminiKey: !!config.gemini.apiKey,
     });
     return;
   }
@@ -309,6 +312,41 @@ router.post("/api/life/score", async (req: Request, res: Response) => {
     console.error("[api] Life scoring failed:", err);
     res.status(500).json({ error: "Life scoring failed" });
   }
+});
+
+// ============================================
+// Settings
+// ============================================
+
+/** Get current settings (never exposes the full key) */
+router.get("/api/settings", (_req: Request, res: Response) => {
+  const key = config.gemini.apiKey;
+  res.json({
+    hasGeminiKey: !!key,
+    geminiKeyHint: key ? `${key.slice(0, 4)}...${key.slice(-4)}` : null,
+    classifier: config.useMockClassifier ? "mock" : "gemini",
+    demoMode: config.demoMode,
+  });
+});
+
+/** Save Gemini API key at runtime */
+router.post("/api/settings", (req: Request, res: Response) => {
+  const { geminiApiKey } = req.body;
+  if (typeof geminiApiKey !== "string") {
+    res.status(400).json({ error: "Missing geminiApiKey" });
+    return;
+  }
+
+  const key = geminiApiKey.trim();
+  setGeminiKey(key);
+  resetGeminiClient();
+  resetLifeAiClient();
+
+  res.json({
+    ok: true,
+    hasGeminiKey: !!key,
+    classifier: config.useMockClassifier ? "mock" : "gemini",
+  });
 });
 
 // ============================================

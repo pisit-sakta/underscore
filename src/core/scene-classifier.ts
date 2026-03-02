@@ -18,6 +18,11 @@ function getClient(): GoogleGenAI {
   return genai;
 }
 
+/** Reset the cached client so the next call picks up a new API key */
+export function resetGeminiClient(): void {
+  genai = null;
+}
+
 const SYSTEM_PROMPT = `You are the Underscore narrative scoring engine. Your job is to classify scenes from text roleplay conversations to determine what music should play.
 
 Analyze the provided text and return a JSON object with this exact structure:
