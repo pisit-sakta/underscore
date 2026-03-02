@@ -5,7 +5,7 @@
  * API calls always go to network (they need fresh data).
  */
 
-const CACHE_NAME = "underscore-v1";
+const CACHE_NAME = "underscore-v2";
 const APP_SHELL = [
   "/life.html",
   "/css/style.css",

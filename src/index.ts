@@ -85,23 +85,24 @@ async function startTunnel(): Promise<void> {
     });
 
     const url = tunnel.url;
+    const lifeUrl = `${url}/life.html`;
 
-    console.log(`  ┌─────────────────────────────────────────┐`);
-    console.log(`  │  TUNNEL ACTIVE                          │`);
-    console.log(`  │                                         │`);
-    console.log(`  │  Public:  ${url.padEnd(29)}│`);
-    console.log(`  │  Life:    ${(url + "/life.html").padEnd(29)}│`);
-    console.log(`  │                                         │`);
-    console.log(`  │  Open on your phone — works on cellular │`);
-    console.log(`  │  Add to Home Screen for app experience  │`);
-    console.log(`  └─────────────────────────────────────────┘`);
+    console.log(`\n  TUNNEL ACTIVE — scan this QR code with your phone:\n`);
 
-    if (!config.demoMode) {
-      console.log(`
-  IMPORTANT: Add this to your Spotify app's Redirect URIs:
-    ${url}/callback
-  (Spotify Dashboard → Your App → Settings → Redirect URIs)
-      `);
+    // Print QR code pointing straight to Life mode
+    try {
+      const qrMod = await import("qrcode-terminal");
+      const qr = qrMod.default ?? qrMod;
+      qr.generate(lifeUrl, { small: true }, (code: string) => {
+        // Indent each line for alignment
+        for (const line of code.split("\n")) {
+          console.log(`    ${line}`);
+        }
+        printTunnelInfo(url, lifeUrl);
+      });
+    } catch {
+      // Fallback if qrcode-terminal isn't available
+      printTunnelInfo(url, lifeUrl);
     }
 
     tunnel.on("close", () => {
@@ -116,4 +117,21 @@ async function startTunnel(): Promise<void> {
     console.log("  Falling back to LAN-only mode.");
     console.log("  Install localtunnel: npm install localtunnel");
   }
+}
+
+function printTunnelInfo(url: string, lifeUrl: string): void {
+  console.log(``);
+  console.log(`  ${lifeUrl}`);
+  console.log(``);
+  console.log(`  1. Scan the QR code (or open the URL)`);
+  console.log(`  2. Tap "Click to Continue" on the first visit`);
+  console.log(`  3. Tap a preset — that's it!`);
+  console.log(``);
+  console.log(`  Tip: Add to Home Screen for a native app feel.`);
+  if (!config.demoMode) {
+    console.log(``);
+    console.log(`  Spotify: add ${url}/callback`);
+    console.log(`  to your app's Redirect URIs in the Spotify Dashboard.`);
+  }
+  console.log(``);
 }

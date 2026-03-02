@@ -17,11 +17,13 @@ let isDemoMode = false;
 // ── Init ──
 
 document.addEventListener("DOMContentLoaded", () => {
+  initWelcome();
   initStatus();
   loadPresets();
   initControls();
   initScoreButton();
   initCollapsible();
+  initInstallBanner();
   startNowPlayingPoll();
 });
 
@@ -209,6 +211,7 @@ async function handleScore() {
     if (data.error) throw new Error(data.error);
 
     renderResult(data);
+    markFirstScore();
   } catch (err) {
     alert(err.message || "Scoring failed");
   } finally {
@@ -370,4 +373,107 @@ function initCollapsible() {
     const isOpen = body.classList.toggle("section-body--open");
     arrow.classList.toggle("section-toggle__arrow--open", isOpen);
   });
+}
+
+// ── Welcome overlay (first visit) ──
+
+function initWelcome() {
+  const overlay = document.querySelector(".js-welcome");
+  if (!overlay) return;
+
+  // Show only on first visit
+  if (localStorage.getItem("underscore_welcomed")) return;
+
+  overlay.classList.remove("hidden");
+
+  const startBtn = document.querySelector(".js-welcome-start");
+  startBtn.addEventListener("click", () => {
+    localStorage.setItem("underscore_welcomed", "1");
+    overlay.classList.add("welcome--leaving");
+    overlay.addEventListener("animationend", () => {
+      overlay.classList.add("hidden");
+    }, { once: true });
+  });
+}
+
+// ── PWA Install Banner ──
+
+let deferredInstallPrompt = null;
+
+function initInstallBanner() {
+  const banner = document.querySelector(".js-install-banner");
+  if (!banner) return;
+
+  // Don't show if already installed as PWA
+  if (window.matchMedia("(display-mode: standalone)").matches) return;
+
+  // Don't show if user dismissed it
+  if (localStorage.getItem("underscore_install_dismissed")) return;
+
+  // Android/Chrome: capture the beforeinstallprompt event
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    showInstallBanner();
+  });
+
+  // iOS: show manual instructions after first score
+  if (isIOS() && !deferredInstallPrompt) {
+    const hint = document.querySelector(".js-install-hint");
+    if (hint) hint.textContent = "Tap Share → Add to Home Screen";
+    // Show after a short delay so it doesn't overwhelm on first load
+    setTimeout(() => {
+      if (!localStorage.getItem("underscore_scored_once")) return;
+      showInstallBanner();
+    }, 2000);
+  }
+
+  // Install button
+  document.querySelector(".js-install-btn").addEventListener("click", async () => {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      const { outcome } = await deferredInstallPrompt.userChoice;
+      if (outcome === "accepted") {
+        banner.classList.add("hidden");
+      }
+      deferredInstallPrompt = null;
+    } else if (isIOS()) {
+      // Can't auto-install on iOS — just highlight the hint
+      const hint = document.querySelector(".js-install-hint");
+      if (hint) {
+        hint.style.color = "var(--accent-bright)";
+        hint.textContent = "Tap Share ↑ then \"Add to Home Screen\"";
+      }
+    }
+  });
+
+  // Dismiss
+  document.querySelector(".js-install-close").addEventListener("click", () => {
+    banner.classList.add("hidden");
+    localStorage.setItem("underscore_install_dismissed", "1");
+  });
+}
+
+function showInstallBanner() {
+  const banner = document.querySelector(".js-install-banner");
+  if (banner) banner.classList.remove("hidden");
+}
+
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
+/**
+ * Mark that the user has scored at least once.
+ * Used to decide when to show the install banner on iOS.
+ */
+function markFirstScore() {
+  if (!localStorage.getItem("underscore_scored_once")) {
+    localStorage.setItem("underscore_scored_once", "1");
+    // Show install banner on iOS after first score
+    if (isIOS() && !localStorage.getItem("underscore_install_dismissed")) {
+      setTimeout(showInstallBanner, 1500);
+    }
+  }
 }

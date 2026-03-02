@@ -18,6 +18,34 @@
 </head>
 <body>
 
+  <!-- ═══════ Welcome Overlay (first visit) ═══════ -->
+  <div class="welcome hidden js-welcome">
+    <div class="welcome__content">
+      <div class="welcome__logo">
+        <span class="welcome__mark">_</span>LIFE
+      </div>
+      <h1 class="welcome__title">Your day, scored.</h1>
+      <p class="welcome__desc">
+        Tap what you're doing. Get the perfect soundtrack.<br>
+        No setup needed — works instantly in demo mode.
+      </p>
+      <button class="welcome__cta js-welcome-start">Get Started</button>
+      <p class="welcome__hint">
+        Tip: Add to Home Screen for a native app feel
+      </p>
+    </div>
+  </div>
+
+  <!-- ═══════ Install Banner ═══════ -->
+  <div class="install-banner hidden js-install-banner">
+    <div class="install-banner__text">
+      <strong>Add to Home Screen</strong>
+      <span class="install-banner__sub js-install-hint">for a native app experience</span>
+    </div>
+    <button class="install-banner__btn js-install-btn">Install</button>
+    <button class="install-banner__close js-install-close" aria-label="Dismiss">&times;</button>
+  </div>
+
   <!-- ═══════ Header ═══════ -->
   <header class="header">
     <div class="header__logo">
