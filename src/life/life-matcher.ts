@@ -94,6 +94,20 @@ function lifeSceneToClassification(scene: LifeScene): SceneClassification {
 
 /** Generate a demo match for Life mode */
 function demoMatchFromLifeScene(scene: LifeScene): TrackMatch {
+  // AI-suggested tracks take priority over archetype lookup
+  if (scene.trackCriteria.suggestedTracks?.length) {
+    const suggested = scene.trackCriteria.suggestedTracks[0];
+    return {
+      spotifyUri: `demo:life:${suggested.toLowerCase().replace(/\s+/g, "_")}`,
+      trackName: suggested,
+      artistName: "AI Pick",
+      matchReason: `[DEMO] AI suggested: "${suggested}" — ${scene.contextSummary}`,
+      energy: scene.energyLevel / 10,
+      valence: 0.5,
+      tempo: 120,
+    };
+  }
+
   const archetype = scene.trackCriteria.archetype;
   const suggestion = LIFE_DEMO_TRACKS[archetype]
     ?? LIFE_DEMO_TRACKS["chill_ambient"]!;

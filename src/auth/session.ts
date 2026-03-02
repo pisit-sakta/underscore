@@ -5,12 +5,15 @@
 import crypto from "node:crypto";
 import type { SpotifyTokens } from "./spotify-auth.js";
 import type { SessionState, TrackMatch } from "../core/types.js";
+import type { TasteProfile } from "../core/library-cache.js";
 
 interface StoredSession {
   tokens: SpotifyTokens;
   state: SessionState;
   /** Cached library tracks with audio features */
   library: CachedTrack[];
+  /** User's taste profile for AI personalization */
+  tasteProfile: TasteProfile | null;
 }
 
 export interface CachedTrack {
@@ -40,6 +43,7 @@ export function createSession(tokens: SpotifyTokens): string {
       maxHistorySize: 10,
     },
     library: [],
+    tasteProfile: null,
   });
   return sessionId;
 }
@@ -68,6 +72,17 @@ export function setLibrary(sessionId: string, library: CachedTrack[]): void {
 
 export function getLibrary(sessionId: string): CachedTrack[] {
   return sessions.get(sessionId)?.library ?? [];
+}
+
+export function setTasteProfile(sessionId: string, profile: TasteProfile): void {
+  const session = sessions.get(sessionId);
+  if (session) {
+    session.tasteProfile = profile;
+  }
+}
+
+export function getTasteProfile(sessionId: string): TasteProfile | null {
+  return sessions.get(sessionId)?.tasteProfile ?? null;
 }
 
 export function updateState(

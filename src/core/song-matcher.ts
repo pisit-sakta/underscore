@@ -227,14 +227,14 @@ async function searchBySceneCriteria(
     parts.push(`${scene.franchise} soundtrack`);
   }
 
+  // Try each AI-suggested track until one is found on Spotify
   if (scene.trackCriteria.suggestedTracks?.length) {
-    const result = await searchTrack(
-      token,
-      scene.trackCriteria.suggestedTracks[0]
-    );
-    if (result) {
-      result.matchReason = `LLM suggested: "${scene.trackCriteria.suggestedTracks[0]}" for ${scene.sceneType}`;
-      return result;
+    for (const suggested of scene.trackCriteria.suggestedTracks) {
+      const result = await searchTrack(token, suggested);
+      if (result) {
+        result.matchReason = `AI picked: "${suggested}" for ${scene.sceneType}`;
+        return result;
+      }
     }
   }
 

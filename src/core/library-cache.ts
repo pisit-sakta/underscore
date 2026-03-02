@@ -1,8 +1,15 @@
 /**
- * Fetches and caches the user's Spotify library with audio features.
- * On auth, we grab their saved tracks so the song matcher has material to work with.
+ * Fetches and caches the user's Spotify library with audio features,
+ * plus their taste profile (top artists + top tracks) for AI personalization.
  */
 import type { CachedTrack } from "../auth/session.js";
+
+/** Compact taste profile for passing to the AI */
+export interface TasteProfile {
+  topArtists: string[];
+  topTracks: string[];
+  topGenres: string[];
+}
 
 const SPOTIFY_API = "https://api.spotify.com/v1";
 
@@ -57,6 +64,62 @@ export async function fetchUserLibrary(
 
   console.log(`[library] Cached ${tracks.length} tracks for user`);
   return tracks;
+}
+
+/**
+ * Fetch the user's top artists and tracks from Spotify.
+ * This gives us their taste profile for AI-personalized suggestions.
+ */
+export async function fetchTasteProfile(token: string): Promise<TasteProfile> {
+  const profile: TasteProfile = { topArtists: [], topTracks: [], topGenres: [] };
+
+  try {
+    // Top artists (medium term = last ~6 months)
+    const artistRes = await fetch(
+      `${SPOTIFY_API}/me/top/artists?limit=20&time_range=medium_term`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (artistRes.ok) {
+      const data = await artistRes.json();
+      for (const artist of data.items ?? []) {
+        profile.topArtists.push(artist.name);
+        for (const genre of artist.genres ?? []) {
+          if (!profile.topGenres.includes(genre)) {
+            profile.topGenres.push(genre);
+          }
+        }
+      }
+    }
+  } catch {
+    // non-critical
+  }
+
+  try {
+    // Top tracks (medium term)
+    const trackRes = await fetch(
+      `${SPOTIFY_API}/me/top/tracks?limit=20&time_range=medium_term`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (trackRes.ok) {
+      const data = await trackRes.json();
+      for (const track of data.items ?? []) {
+        const artists = track.artists?.map((a: any) => a.name).join(", ") ?? "";
+        profile.topTracks.push(`${track.name} by ${artists}`);
+      }
+    }
+  } catch {
+    // non-critical
+  }
+
+  // Keep genres manageable
+  profile.topGenres = profile.topGenres.slice(0, 15);
+
+  console.log(
+    `[library] Taste profile: ${profile.topArtists.length} artists, ` +
+    `${profile.topTracks.length} tracks, ${profile.topGenres.length} genres`
+  );
+
+  return profile;
 }
 
 /** Enrich tracks with Spotify audio features (energy, valence, tempo) */

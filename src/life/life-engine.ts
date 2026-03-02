@@ -15,6 +15,7 @@ import { executePlayback } from "../core/playback-controller.js";
 import type { LifeInput, LifeScene, LifeResult } from "./types.js";
 import type { TrackMatch } from "../core/types.js";
 import type { CachedTrack } from "../auth/session.js";
+import type { TasteProfile } from "../core/library-cache.js";
 
 // ── Per-session state ──
 
@@ -50,7 +51,8 @@ export async function processLifeInput(
   sessionId: string,
   rawInput: Partial<LifeInput>,
   token: string,
-  library: CachedTrack[]
+  library: CachedTrack[],
+  tasteProfile?: TasteProfile | null,
 ): Promise<LifeResult> {
   const state = getState(sessionId);
 
@@ -72,7 +74,7 @@ export async function processLifeInput(
   // 2. Classify — use AI when Gemini is available, else deterministic
   const useAI = !config.useMockClassifier;
   const scene = useAI
-    ? await classifyLifeSceneAI(input)
+    ? await classifyLifeSceneAI(input, tasteProfile ?? null)
     : classifyLifeScene(input);
 
   // 3. Skip transition if scene is basically the same

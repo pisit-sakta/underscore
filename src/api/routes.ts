@@ -17,8 +17,10 @@ import {
   updateTokens,
   setLibrary,
   getLibrary,
+  setTasteProfile,
+  getTasteProfile,
 } from "../auth/session.js";
-import { fetchUserLibrary } from "../core/library-cache.js";
+import { fetchUserLibrary, fetchTasteProfile } from "../core/library-cache.js";
 import { processText } from "../core/narrative-engine.js";
 import {
   getCurrentlyPlaying,
@@ -65,11 +67,16 @@ router.get("/callback", async (req: Request, res: Response) => {
       maxAge: 24 * 60 * 60 * 1000,
     });
 
-    // Fetch library in background (with error handling)
+    // Fetch library + taste profile in background
     fetchUserLibrary(tokens.accessToken)
       .then((library) => setLibrary(sessionId, library))
       .catch((err) =>
         console.error("[auth] Background library fetch failed:", err)
+      );
+    fetchTasteProfile(tokens.accessToken)
+      .then((profile) => setTasteProfile(sessionId, profile))
+      .catch((err) =>
+        console.error("[auth] Background taste profile fetch failed:", err)
       );
 
     res.redirect("/?connected=true");
@@ -300,11 +307,13 @@ router.post("/api/life/score", async (req: Request, res: Response) => {
     }
 
     const library = getLibrary(sessionId);
+    const tasteProfile = getTasteProfile(sessionId);
     const result = await processLifeInput(
       sessionId,
       req.body,
       validTokens.accessToken,
       library,
+      tasteProfile,
     );
 
     res.json({ ...result, demoMode: false });
