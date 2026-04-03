@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,7 +17,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
@@ -34,21 +32,32 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.underscore.app.api.LlmProviderType
 
+data class SettingsState(
+    val provider: LlmProviderType = LlmProviderType.GEMINI,
+    val geminiKey: String = "",
+    val claudeKey: String = "",
+    val customApiUrl: String = "",
+    val customApiKey: String = "",
+    val customModel: String = "",
+    val weatherKey: String = "",
+    val placesKey: String = "",
+    val batterySaver: Boolean = false
+)
+
 @Composable
 fun SettingsScreen(
-    currentProvider: LlmProviderType,
-    geminiKey: String,
-    claudeKey: String,
-    weatherKey: String,
-    placesKey: String,
-    batterySaver: Boolean,
+    state: SettingsState,
     onProviderChanged: (LlmProviderType) -> Unit,
     onGeminiKeyChanged: (String) -> Unit,
     onClaudeKeyChanged: (String) -> Unit,
+    onCustomApiUrlChanged: (String) -> Unit,
+    onCustomApiKeyChanged: (String) -> Unit,
+    onCustomModelChanged: (String) -> Unit,
     onWeatherKeyChanged: (String) -> Unit,
     onPlacesKeyChanged: (String) -> Unit,
     onBatterySaverChanged: (Boolean) -> Unit,
@@ -68,7 +77,7 @@ fun SettingsScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "BACK",
+                text = "< BACK",
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.clickable { onBack() }
@@ -99,7 +108,7 @@ fun SettingsScreen(
         LlmProviderType.entries.forEach { provider ->
             ProviderOption(
                 provider = provider,
-                isSelected = currentProvider == provider,
+                isSelected = state.provider == provider,
                 onSelect = { onProviderChanged(provider) }
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -107,23 +116,60 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // ── API Keys ──
-        SectionHeader("API KEYS")
-        Text(
-            text = "Keys are stored locally on your device only.",
-            fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        // ── Provider-specific config ──
+        when (state.provider) {
+            LlmProviderType.GEMINI -> {
+                SectionHeader("GEMINI CONFIG")
+                ApiKeyField("Google AI API Key", state.geminiKey, onGeminiKeyChanged)
+                HintText("Get one at aistudio.google.com/app/apikey")
+            }
+            LlmProviderType.CLAUDE -> {
+                SectionHeader("CLAUDE CONFIG")
+                ApiKeyField("Anthropic API Key", state.claudeKey, onClaudeKeyChanged)
+                HintText("Get one at console.anthropic.com")
+            }
+            LlmProviderType.OPENAI_COMPATIBLE -> {
+                SectionHeader("CUSTOM ENDPOINT")
+                HintText("Any OpenAI-compatible API: OpenRouter, local LLMs, proxy servers, self-hosted models. Enter the base URL, model ID, and API key.")
 
-        Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-        ApiKeyField("Gemini API Key", geminiKey, onGeminiKeyChanged)
+                TextInputField(
+                    label = "API URL",
+                    value = state.customApiUrl,
+                    onValueChange = onCustomApiUrlChanged,
+                    placeholder = "https://my-proxy.example.com/v1"
+                )
+                HintText("Base URL. We'll append /chat/completions if needed.")
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                TextInputField(
+                    label = "Model",
+                    value = state.customModel,
+                    onValueChange = onCustomModelChanged,
+                    placeholder = "claude-opus-4-5-20250416"
+                )
+                HintText("Exact model ID as expected by your endpoint.")
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                ApiKeyField(
+                    label = "API Key",
+                    value = state.customApiKey,
+                    onValueChange = onCustomApiKeyChanged
+                )
+                HintText("Sent as 'Authorization: Bearer <key>'. Leave empty for local LLMs that don't require auth.")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ── Sensor API Keys ──
+        SectionHeader("SENSOR API KEYS")
+        ApiKeyField("OpenWeatherMap Key", state.weatherKey, onWeatherKeyChanged)
         Spacer(modifier = Modifier.height(8.dp))
-        ApiKeyField("Claude API Key", claudeKey, onClaudeKeyChanged)
-        Spacer(modifier = Modifier.height(8.dp))
-        ApiKeyField("OpenWeatherMap Key", weatherKey, onWeatherKeyChanged)
-        Spacer(modifier = Modifier.height(8.dp))
-        ApiKeyField("Google Places Key", placesKey, onPlacesKeyChanged)
+        ApiKeyField("Google Places Key", state.placesKey, onPlacesKeyChanged)
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -142,7 +188,7 @@ fun SettingsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Switch(checked = batterySaver, onCheckedChange = onBatterySaverChanged)
+            Switch(checked = state.batterySaver, onCheckedChange = onBatterySaverChanged)
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -185,6 +231,17 @@ private fun SectionHeader(title: String) {
 }
 
 @Composable
+private fun HintText(text: String) {
+    Text(
+        text = text,
+        fontSize = 11.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        lineHeight = 14.sp,
+        modifier = Modifier.padding(top = 2.dp, bottom = 2.dp)
+    )
+}
+
+@Composable
 private fun ProviderOption(
     provider: LlmProviderType,
     isSelected: Boolean,
@@ -214,7 +271,8 @@ private fun ProviderOption(
             Text(
                 text = provider.description,
                 fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 14.sp
             )
         }
     }
@@ -233,6 +291,34 @@ private fun ApiKeyField(label: String, value: String, onValueChange: (String) ->
         modifier = Modifier.fillMaxWidth(),
         singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
+        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
+    )
+}
+
+@Composable
+private fun TextInputField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String = ""
+) {
+    var text by remember(value) { mutableStateOf(value) }
+    OutlinedTextField(
+        value = text,
+        onValueChange = {
+            text = it
+            onValueChange(it)
+        },
+        label = { Text(label, fontSize = 12.sp) },
+        placeholder = {
+            Text(
+                placeholder,
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            )
+        },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = true,
         textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
     )
 }

@@ -15,6 +15,7 @@ import com.underscore.app.api.ClaudeApi
 import com.underscore.app.api.GeminiApi
 import com.underscore.app.api.LlmProvider
 import com.underscore.app.api.LlmProviderType
+import com.underscore.app.api.OpenAiCompatibleApi
 import com.underscore.app.api.SpotifyWebApi
 import com.underscore.app.auth.SpotifyAuth
 import com.underscore.app.context.ClassifiedScene
@@ -132,6 +133,18 @@ class UnderscoreService : LifecycleService() {
             LlmProviderType.CLAUDE -> {
                 val key = userPrefs.claudeApiKey.ifEmpty { ClaudeApi.DEFAULT_API_KEY }
                 ClaudeApi(key)
+            }
+            LlmProviderType.OPENAI_COMPATIBLE -> {
+                val url = userPrefs.customApiUrl
+                val model = userPrefs.customModel
+                val key = userPrefs.customApiKey
+                if (url.isNotBlank() && model.isNotBlank()) {
+                    OpenAiCompatibleApi(baseUrl = url, model = model, apiKey = key)
+                } else {
+                    // Fallback to Gemini if custom not configured
+                    val geminiKey = userPrefs.geminiApiKey.ifEmpty { GeminiApi.DEFAULT_API_KEY }
+                    GeminiApi(geminiKey)
+                }
             }
         }
     }

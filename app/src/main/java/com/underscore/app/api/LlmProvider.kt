@@ -13,15 +13,18 @@ interface LlmProvider {
 
 enum class LlmProviderType {
     GEMINI,
-    CLAUDE;
+    CLAUDE,
+    OPENAI_COMPATIBLE;
 
     val displayName: String get() = when (this) {
         GEMINI -> "Google Gemini 3 Flash"
-        CLAUDE -> "Anthropic Claude Haiku"
+        CLAUDE -> "Anthropic Claude"
+        OPENAI_COMPATIBLE -> "Custom (OpenAI-compatible)"
     }
 
     val description: String get() = when (this) {
-        GEMINI -> "Fastest. Cheapest. Deepest media knowledge."
-        CLAUDE -> "Strong privacy stance. Excellent reasoning."
+        GEMINI -> "Fastest. Cheapest. Deepest media knowledge. Uses Google AI API."
+        CLAUDE -> "Strong privacy stance. Excellent reasoning. Uses Anthropic Messages API."
+        OPENAI_COMPATIBLE -> "Any OpenAI-compatible endpoint: OpenRouter, local LLMs, proxy servers, self-hosted. You provide the URL + model + key."
     }
 }

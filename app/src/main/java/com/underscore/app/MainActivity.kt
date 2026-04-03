@@ -22,6 +22,7 @@ import com.underscore.app.ui.LoginScreen
 import com.underscore.app.ui.MainScreen
 import com.underscore.app.ui.SensorDebugInfo
 import com.underscore.app.ui.SettingsScreen
+import com.underscore.app.ui.SettingsState
 import com.underscore.app.ui.theme.UnderscoreTheme
 import com.underscore.app.updater.AppUpdater
 import com.underscore.app.updater.UpdateInfo
@@ -107,15 +108,23 @@ class MainActivity : ComponentActivity() {
                     }
                     showSettings -> {
                         SettingsScreen(
-                            currentProvider = userPrefs.llmProvider,
-                            geminiKey = userPrefs.geminiApiKey,
-                            claudeKey = userPrefs.claudeApiKey,
-                            weatherKey = userPrefs.weatherApiKey,
-                            placesKey = userPrefs.placesApiKey,
-                            batterySaver = userPrefs.batterySaver,
+                            state = SettingsState(
+                                provider = userPrefs.llmProvider,
+                                geminiKey = userPrefs.geminiApiKey,
+                                claudeKey = userPrefs.claudeApiKey,
+                                customApiUrl = userPrefs.customApiUrl,
+                                customApiKey = userPrefs.customApiKey,
+                                customModel = userPrefs.customModel,
+                                weatherKey = userPrefs.weatherApiKey,
+                                placesKey = userPrefs.placesApiKey,
+                                batterySaver = userPrefs.batterySaver
+                            ),
                             onProviderChanged = { userPrefs.llmProvider = it },
                             onGeminiKeyChanged = { userPrefs.geminiApiKey = it },
                             onClaudeKeyChanged = { userPrefs.claudeApiKey = it },
+                            onCustomApiUrlChanged = { userPrefs.customApiUrl = it },
+                            onCustomApiKeyChanged = { userPrefs.customApiKey = it },
+                            onCustomModelChanged = { userPrefs.customModel = it },
                             onWeatherKeyChanged = { userPrefs.weatherApiKey = it },
                             onPlacesKeyChanged = { userPrefs.placesApiKey = it },
                             onBatterySaverChanged = { userPrefs.batterySaver = it },

@@ -11,6 +11,9 @@ class UserPreferences(context: Context) {
         private const val KEY_LLM_PROVIDER = "llm_provider"
         private const val KEY_GEMINI_API_KEY = "gemini_api_key"
         private const val KEY_CLAUDE_API_KEY = "claude_api_key"
+        private const val KEY_CUSTOM_API_URL = "custom_api_url"
+        private const val KEY_CUSTOM_API_KEY = "custom_api_key"
+        private const val KEY_CUSTOM_MODEL = "custom_model"
         private const val KEY_WEATHER_API_KEY = "weather_api_key"
         private const val KEY_PLACES_API_KEY = "places_api_key"
         private const val KEY_BATTERY_SAVER = "battery_saver"
@@ -32,6 +35,19 @@ class UserPreferences(context: Context) {
     var claudeApiKey: String
         get() = prefs.getString(KEY_CLAUDE_API_KEY, "") ?: ""
         set(value) { prefs.edit().putString(KEY_CLAUDE_API_KEY, value).apply() }
+
+    // Custom OpenAI-compatible endpoint
+    var customApiUrl: String
+        get() = prefs.getString(KEY_CUSTOM_API_URL, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_CUSTOM_API_URL, value).apply() }
+
+    var customApiKey: String
+        get() = prefs.getString(KEY_CUSTOM_API_KEY, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_CUSTOM_API_KEY, value).apply() }
+
+    var customModel: String
+        get() = prefs.getString(KEY_CUSTOM_MODEL, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_CUSTOM_MODEL, value).apply() }
 
     var weatherApiKey: String
         get() = prefs.getString(KEY_WEATHER_API_KEY, "") ?: ""
