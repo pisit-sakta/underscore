@@ -55,6 +55,8 @@ class MainActivity : ComponentActivity() {
                 val currentScene by UnderscoreService.currentScene.collectAsState()
                 val nowPlaying by playbackController.nowPlaying.collectAsState()
                 val isSpotifyConnected by playbackController.isConnected.collectAsState()
+                val matchReason by UnderscoreService.matchReason.collectAsState()
+                val libraryStatus by UnderscoreService.libraryStatus.collectAsState()
 
                 if (!isLoggedIn) {
                     LoginScreen(
@@ -67,7 +69,9 @@ class MainActivity : ComponentActivity() {
                         nowPlaying = nowPlaying,
                         currentScene = currentScene,
                         sensorDebug = SensorDebugInfo(
-                            scene = currentScene.name
+                            scene = currentScene.name,
+                            matchReason = matchReason,
+                            libraryStatus = libraryStatus
                         ),
                         onStartScoring = { startScoring() },
                         onStopScoring = { stopScoring() },

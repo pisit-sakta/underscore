@@ -45,7 +45,10 @@ data class SceneState(
     val movementIntensity: MovementIntensity = MovementIntensity.STILL,
     val timeOfDay: TimeOfDay = TimeOfDay.fromLocalTime(LocalTime.now()),
     val previousClassification: SceneClassification? = null,
-    val minutesInCurrentScene: Int = 0
+    val minutesInCurrentScene: Int = 0,
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    val weather: String? = null // "clear", "rain", "storm", "clouds", etc.
 )
 
 data class SensorSnapshot(

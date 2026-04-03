@@ -11,14 +11,19 @@ import androidx.lifecycle.lifecycleScope
 import com.underscore.app.MainActivity
 import com.underscore.app.R
 import com.underscore.app.UnderscoreApp
+import com.underscore.app.api.GeminiApi
+import com.underscore.app.api.SpotifyWebApi
+import com.underscore.app.auth.SpotifyAuth
 import com.underscore.app.context.ContextEngine
-import com.underscore.app.context.ContextShift
-import com.underscore.app.context.ContextShiftDetector
 import com.underscore.app.context.SceneClassification
-import com.underscore.app.narrative.SongSelector
+import com.underscore.app.context.SceneState
+import com.underscore.app.data.SongDatabase
+import com.underscore.app.narrative.LibraryAnalyzer
+import com.underscore.app.narrative.NarrativeEngine
 import com.underscore.app.playback.PlaybackController
 import com.underscore.app.playback.TransitionManager
 import com.underscore.app.sensor.SensorAggregator
+import com.underscore.app.sensor.WeatherProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,6 +43,12 @@ class UnderscoreService : LifecycleService() {
         private val _isRunning = MutableStateFlow(false)
         val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
 
+        private val _matchReason = MutableStateFlow("")
+        val matchReason: StateFlow<String> = _matchReason.asStateFlow()
+
+        private val _libraryStatus = MutableStateFlow("Not analyzed")
+        val libraryStatus: StateFlow<String> = _libraryStatus.asStateFlow()
+
         fun start(context: Context) {
             val intent = Intent(context, UnderscoreService::class.java)
             context.startForegroundService(intent)
@@ -53,10 +64,11 @@ class UnderscoreService : LifecycleService() {
 
     private lateinit var sensorAggregator: SensorAggregator
     private lateinit var contextEngine: ContextEngine
-    private lateinit var contextShiftDetector: ContextShiftDetector
-    private lateinit var songSelector: SongSelector
     private lateinit var playbackController: PlaybackController
     private lateinit var transitionManager: TransitionManager
+    private lateinit var narrativeEngine: NarrativeEngine
+    private lateinit var weatherProvider: WeatherProvider
+    private lateinit var db: SongDatabase
 
     private var lastClassification: SceneClassification? = null
 
@@ -66,17 +78,19 @@ class UnderscoreService : LifecycleService() {
 
         sensorAggregator = SensorAggregator(this)
         contextEngine = ContextEngine()
-        contextShiftDetector = ContextShiftDetector()
-        songSelector = SongSelector()
         playbackController = PlaybackController(this)
         transitionManager = TransitionManager(playbackController)
+        weatherProvider = WeatherProvider(WeatherProvider.DEFAULT_API_KEY)
+        db = SongDatabase.getInstance(this)
+
+        val geminiApi = GeminiApi(GeminiApi.DEFAULT_API_KEY)
+        narrativeEngine = NarrativeEngine(geminiApi, db)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
 
         if (intent?.action == ACTION_STOP) {
-            Log.d(TAG, "Stop action received")
             stopScoring()
             return START_NOT_STICKY
         }
@@ -91,31 +105,95 @@ class UnderscoreService : LifecycleService() {
         _isRunning.value = true
         playbackController.connect()
 
-        // Main pipeline: sensors -> context -> song -> play
+        // Analyze library in background if needed
+        lifecycleScope.launch {
+            analyzeLibraryIfNeeded()
+        }
+
+        // Main pipeline: sensors -> context -> narrative engine -> play
         lifecycleScope.launch {
             val sceneStates = sensorAggregator.sceneStateFlow()
             val classifications = contextEngine.classify(sceneStates)
+
+            var latestState: SceneState? = null
+
+            // Track latest scene state for weather/GPS data
+            launch {
+                sensorAggregator.sceneStateFlow().collectLatest { state ->
+                    latestState = state
+                }
+            }
 
             classifications.collectLatest { classification ->
                 Log.d(TAG, "Scene: $classification")
                 _currentScene.value = classification
 
-                val shift = lastClassification?.let { prev ->
-                    if (prev != classification) {
-                        ContextShift(from = prev, to = classification, isUrgent = false)
-                    } else null
-                }
+                val isNewScene = lastClassification == null || lastClassification != classification
 
-                if (shift != null || lastClassification == null) {
-                    val track = songSelector.selectTrack(classification)
-                    Log.d(TAG, "Selected: ${track.title} by ${track.artist}")
-                    transitionManager.transition(track.uri, shift)
-                    updateNotification(classification, track.title)
+                if (isNewScene) {
+                    val state = latestState ?: SceneState()
+
+                    // Fetch weather (cached, won't block if recent)
+                    val weather = if (state.latitude != 0.0) {
+                        weatherProvider.getWeather(state.latitude, state.longitude)
+                    } else null
+
+                    // Use narrative engine for song selection
+                    val selection = narrativeEngine.selectSong(
+                        sceneState = state.copy(
+                            previousClassification = lastClassification,
+                            weather = weather?.condition
+                        ),
+                        classification = classification,
+                        weather = weather?.let { "${it.condition} (${it.description}, ${it.temperatureC}°C)" }
+                    )
+
+                    Log.d(TAG, "Selected: ${selection.title} by ${selection.artist}")
+                    Log.d(TAG, "Reason: ${selection.matchReason}")
+                    _matchReason.value = selection.matchReason
+
+                    // Play with appropriate transition
+                    when (selection.transitionType) {
+                        "dramatic_silence" -> transitionManager.dramaticSilence(selection.spotifyUri)
+                        else -> {
+                            val isUrgent = selection.transitionType == "urgent"
+                            val shift = lastClassification?.let { prev ->
+                                com.underscore.app.context.ContextShift(
+                                    from = prev,
+                                    to = classification,
+                                    isUrgent = isUrgent
+                                )
+                            }
+                            transitionManager.transition(selection.spotifyUri, shift)
+                        }
+                    }
+
+                    updateNotification(classification, selection.title)
                 }
 
                 lastClassification = classification
             }
         }
+    }
+
+    private suspend fun analyzeLibraryIfNeeded() {
+        val spotifyAuth = SpotifyAuth(this)
+        val token = spotifyAuth.getAccessToken() ?: return
+
+        _libraryStatus.value = "Checking library..."
+
+        val spotifyApi = SpotifyWebApi(token)
+        val geminiApi = GeminiApi(GeminiApi.DEFAULT_API_KEY)
+        val analyzer = LibraryAnalyzer(spotifyApi, geminiApi, db)
+
+        val count = analyzer.analyzeLibrary(
+            maxTracks = 200,
+            onProgress = { analyzed, total ->
+                _libraryStatus.value = "Analyzing: $analyzed / $total"
+            }
+        )
+
+        _libraryStatus.value = "$count songs ready"
     }
 
     private fun stopScoring() {
@@ -130,13 +208,11 @@ class UnderscoreService : LifecycleService() {
         super.onDestroy()
         _isRunning.value = false
         playbackController.disconnect()
-        Log.d(TAG, "Service destroyed")
     }
 
     private fun buildNotification(text: String): Notification {
         val openIntent = PendingIntent.getActivity(
-            this,
-            0,
+            this, 0,
             Intent(this, MainActivity::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )

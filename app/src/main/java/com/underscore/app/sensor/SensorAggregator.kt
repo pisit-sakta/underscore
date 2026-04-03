@@ -28,7 +28,9 @@ class SensorAggregator(context: Context) {
                 locationType = locationType,
                 speedKmh = speedKmh,
                 movementIntensity = motion.intensity,
-                timeOfDay = TimeOfDay.fromLocalTime(LocalTime.now())
+                timeOfDay = TimeOfDay.fromLocalTime(LocalTime.now()),
+                latitude = location.latitude,
+                longitude = location.longitude
             )
         }
     }

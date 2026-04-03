@@ -134,7 +134,10 @@ data class SensorDebugInfo(
     val speedKmh: Float = 0f,
     val movementIntensity: String = "UNKNOWN",
     val timeOfDay: String = "UNKNOWN",
-    val scene: String = "UNKNOWN"
+    val scene: String = "UNKNOWN",
+    val weather: String = "—",
+    val matchReason: String = "",
+    val libraryStatus: String = "Not analyzed"
 )
 
 @Composable
@@ -160,7 +163,18 @@ fun SensorDebugPanel(info: SensorDebugInfo) {
         DebugRow("Speed", "%.1f km/h".format(info.speedKmh))
         DebugRow("Motion", info.movementIntensity)
         DebugRow("Time", info.timeOfDay)
+        DebugRow("Weather", info.weather)
         DebugRow("Scene", info.scene)
+        DebugRow("Library", info.libraryStatus)
+        if (info.matchReason.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = info.matchReason,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.secondary,
+                lineHeight = 14.sp
+            )
+        }
     }
 }
 
