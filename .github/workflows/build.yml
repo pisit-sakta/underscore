@@ -1,10 +1,11 @@
-name: Build APK
+name: Build & Release APK
 
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -25,20 +26,33 @@ jobs:
       - name: Create libs directory
         run: mkdir -p app/libs
 
-      - name: Download Spotify App Remote SDK
-        run: |
-          curl -sL "https://github.com/nicbarker/spotify-android-sdk-mirror/raw/refs/heads/main/spotify-app-remote-release-0.8.0.aar" \
-            -o app/libs/spotify-app-remote-release-0.8.0.aar || true
-
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
       - name: Build debug APK
         run: ./gradlew assembleDebug
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
+      - name: Get version info
+        id: version
+        run: |
+          BUILD_NUM=$(git rev-list --count HEAD)
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "tag=build-${BUILD_NUM}" >> $GITHUB_OUTPUT
+          echo "name=Build #${BUILD_NUM} (${SHORT_SHA})" >> $GITHUB_OUTPUT
+          echo "build_num=${BUILD_NUM}" >> $GITHUB_OUTPUT
+
+      - name: Rename APK
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk \
+             app/build/outputs/apk/debug/underscore-${{ steps.version.outputs.build_num }}.apk
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         with:
-          name: underscore-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 30
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.name }}
+          body: |
+            Auto-built from commit ${{ github.sha }}
+          files: app/build/outputs/apk/debug/underscore-${{ steps.version.outputs.build_num }}.apk
+          prerelease: true
+          make_latest: true

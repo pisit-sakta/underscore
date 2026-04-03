@@ -4,6 +4,28 @@ plugins {
     id("org.jetbrains.kotlin.kapt")
 }
 
+// Auto-increment versionCode from git commit count
+val gitVersionCode: Int by lazy {
+    try {
+        val process = Runtime.getRuntime().exec("git rev-list --count HEAD")
+        process.inputStream.bufferedReader().readText().trim().toIntOrNull() ?: 1
+    } catch (e: Exception) {
+        1
+    }
+}
+
+val gitVersionName: String by lazy {
+    try {
+        val count = Runtime.getRuntime().exec("git rev-list --count HEAD")
+            .inputStream.bufferedReader().readText().trim()
+        val sha = Runtime.getRuntime().exec("git rev-parse --short HEAD")
+            .inputStream.bufferedReader().readText().trim()
+        "0.1.0-build$count ($sha)"
+    } catch (e: Exception) {
+        "0.1.0"
+    }
+}
+
 android {
     namespace = "com.underscore.app"
     compileSdk = 34
@@ -12,8 +34,8 @@ android {
         applicationId = "com.underscore.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = gitVersionCode
+        versionName = gitVersionName
 
         manifestPlaceholders["redirectSchemeName"] = "underscore"
         manifestPlaceholders["redirectHostName"] = "spotify-auth-callback"

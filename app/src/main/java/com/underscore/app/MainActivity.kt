@@ -22,14 +22,21 @@ import com.underscore.app.ui.LoginScreen
 import com.underscore.app.ui.MainScreen
 import com.underscore.app.ui.SensorDebugInfo
 import com.underscore.app.ui.theme.UnderscoreTheme
+import com.underscore.app.updater.AppUpdater
+import com.underscore.app.updater.UpdateInfo
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var spotifyAuth: SpotifyAuth
     private lateinit var playbackController: PlaybackController
+    private lateinit var appUpdater: AppUpdater
 
     // Debug sensor state — updated by service broadcasts (simplified for Sprint 0)
     private var sensorDebug by mutableStateOf(SensorDebugInfo())
+    private var pendingUpdate by mutableStateOf<UpdateInfo?>(null)
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -45,11 +52,45 @@ class MainActivity : ComponentActivity() {
 
         spotifyAuth = SpotifyAuth(this)
         playbackController = PlaybackController(this)
+        appUpdater = AppUpdater(this)
 
         requestPermissions()
+        checkForUpdate()
 
         setContent {
             UnderscoreTheme {
+                // Update dialog
+                pendingUpdate?.let { update ->
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = {
+                            appUpdater.dismissUpdate(update.buildNumber)
+                            pendingUpdate = null
+                        },
+                        title = { androidx.compose.material3.Text("Update Available") },
+                        text = {
+                            androidx.compose.material3.Text(
+                                "${update.releaseName}\n\nA new version is ready. Update now?"
+                            )
+                        },
+                        confirmButton = {
+                            androidx.compose.material3.TextButton(onClick = {
+                                appUpdater.downloadAndInstall(update)
+                                pendingUpdate = null
+                            }) {
+                                androidx.compose.material3.Text("UPDATE")
+                            }
+                        },
+                        dismissButton = {
+                            androidx.compose.material3.TextButton(onClick = {
+                                appUpdater.dismissUpdate(update.buildNumber)
+                                pendingUpdate = null
+                            }) {
+                                androidx.compose.material3.Text("LATER")
+                            }
+                        }
+                    )
+                }
+
                 val isLoggedIn = spotifyAuth.isLoggedIn()
                 val isScoring by UnderscoreService.isRunning.collectAsState()
                 val currentScene by UnderscoreService.currentScene.collectAsState()
@@ -120,6 +161,15 @@ class MainActivity : ComponentActivity() {
         playbackController.disconnect()
         spotifyAuth.logout()
         recreate()
+    }
+
+    private fun checkForUpdate() {
+        CoroutineScope(Dispatchers.Main).launch {
+            val update = appUpdater.checkForUpdate()
+            if (update != null) {
+                pendingUpdate = update
+            }
+        }
     }
 
     private fun requestPermissions() {
