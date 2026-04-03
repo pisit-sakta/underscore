@@ -48,7 +48,13 @@ data class SceneState(
     val minutesInCurrentScene: Int = 0,
     val latitude: Double = 0.0,
     val longitude: Double = 0.0,
-    val weather: String? = null // "clear", "rain", "storm", "clouds", etc.
+    val weather: String? = null, // "clear", "rain", "storm", "clouds", etc.
+    // World Layer — place/zone awareness
+    val placeType: String? = null,           // "gym", "temple", "restaurant", etc.
+    val zoneCharacter: String? = null,       // "commercial", "nightlife", "cultural", etc.
+    val tonalPalette: String? = null,        // Musical descriptors for narrative engine
+    val narrativeFunction: String? = null,   // What this place means in the protagonist's story
+    val nearbyLandmarks: List<String> = emptyList()
 )
 
 data class SensorSnapshot(

@@ -44,7 +44,7 @@ class GeminiApi(private val apiKey: String) {
         // Get one at https://aistudio.google.com/app/apikey
         const val DEFAULT_API_KEY = "YOUR_GEMINI_API_KEY_HERE"
         private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-        private const val MODEL = "gemini-2.0-flash" // Using latest available Flash model
+        private const val MODEL = "gemini-3-flash"
     }
 
     private val client = OkHttpClient.Builder()

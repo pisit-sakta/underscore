@@ -136,6 +136,7 @@ data class SensorDebugInfo(
     val timeOfDay: String = "UNKNOWN",
     val scene: String = "UNKNOWN",
     val weather: String = "—",
+    val placeInfo: String = "—",
     val matchReason: String = "",
     val libraryStatus: String = "Not analyzed"
 )
@@ -164,6 +165,7 @@ fun SensorDebugPanel(info: SensorDebugInfo) {
         DebugRow("Motion", info.movementIntensity)
         DebugRow("Time", info.timeOfDay)
         DebugRow("Weather", info.weather)
+        DebugRow("Place", info.placeInfo)
         DebugRow("Scene", info.scene)
         DebugRow("Library", info.libraryStatus)
         if (info.matchReason.isNotEmpty()) {

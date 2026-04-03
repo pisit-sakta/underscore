@@ -197,10 +197,25 @@ class NarrativeEngine(
         val parts = mutableListOf<String>()
         parts.add("Classification: ${classification.name}")
         parts.add("Time of day: ${state.timeOfDay.name}")
-        parts.add("Movement: ${state.movementIntensity.name}")
-        parts.add("Speed: ${state.speedKmh} km/h")
 
+        // World Layer
+        if (state.placeType != null) parts.add("Place type: ${state.placeType}")
+        if (state.zoneCharacter != null) parts.add("Zone character: ${state.zoneCharacter}")
+        if (state.tonalPalette != null) parts.add("Tonal palette: ${state.tonalPalette}")
+        if (state.narrativeFunction != null) parts.add("Narrative function: ${state.narrativeFunction}")
+        if (state.nearbyLandmarks.isNotEmpty()) {
+            parts.add("Nearby landmarks: ${state.nearbyLandmarks.joinToString(", ")}")
+        }
+
+        // Action Layer
+        parts.add("Movement: ${state.movementIntensity.name}")
+        parts.add("Speed: ${"%.1f".format(state.speedKmh)} km/h")
+
+        // Context
         if (weather != null) parts.add("Weather: $weather")
+        if (state.minutesInCurrentScene > 0) {
+            parts.add("Minutes in current scene: ${state.minutesInCurrentScene}")
+        }
 
         state.previousClassification?.let {
             parts.add("Previous scene: ${it.name}")

@@ -14,7 +14,9 @@ import com.underscore.app.UnderscoreApp
 import com.underscore.app.api.GeminiApi
 import com.underscore.app.api.SpotifyWebApi
 import com.underscore.app.auth.SpotifyAuth
+import com.underscore.app.context.ClassifiedScene
 import com.underscore.app.context.ContextEngine
+import com.underscore.app.context.ContextShift
 import com.underscore.app.context.SceneClassification
 import com.underscore.app.context.SceneState
 import com.underscore.app.data.SongDatabase
@@ -22,12 +24,14 @@ import com.underscore.app.narrative.LibraryAnalyzer
 import com.underscore.app.narrative.NarrativeEngine
 import com.underscore.app.playback.PlaybackController
 import com.underscore.app.playback.TransitionManager
+import com.underscore.app.sensor.PlacesProvider
 import com.underscore.app.sensor.SensorAggregator
 import com.underscore.app.sensor.WeatherProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.launch
 
 class UnderscoreService : LifecycleService() {
@@ -48,6 +52,9 @@ class UnderscoreService : LifecycleService() {
 
         private val _libraryStatus = MutableStateFlow("Not analyzed")
         val libraryStatus: StateFlow<String> = _libraryStatus.asStateFlow()
+
+        private val _placeInfo = MutableStateFlow("")
+        val placeInfo: StateFlow<String> = _placeInfo.asStateFlow()
 
         fun start(context: Context) {
             val intent = Intent(context, UnderscoreService::class.java)
@@ -76,7 +83,8 @@ class UnderscoreService : LifecycleService() {
         super.onCreate()
         Log.d(TAG, "Service created")
 
-        sensorAggregator = SensorAggregator(this)
+        val placesProvider = PlacesProvider(PlacesProvider.DEFAULT_API_KEY)
+        sensorAggregator = SensorAggregator(this, placesProvider)
         contextEngine = ContextEngine()
         playbackController = PlaybackController(this)
         transitionManager = TransitionManager(playbackController)
@@ -110,28 +118,24 @@ class UnderscoreService : LifecycleService() {
             analyzeLibraryIfNeeded()
         }
 
-        // Main pipeline: sensors -> context -> narrative engine -> play
+        // Main pipeline: sensors → context engine (with debouncing) → narrative engine → play
         lifecycleScope.launch {
             val sceneStates = sensorAggregator.sceneStateFlow()
-            val classifications = contextEngine.classify(sceneStates)
+            val classifiedScenes = contextEngine.classify(sceneStates)
 
-            var latestState: SceneState? = null
+            // Only react when classification actually changes (debouncing is inside ContextEngine)
+            classifiedScenes
+                .distinctUntilChangedBy { it.classification }
+                .collectLatest { scene ->
+                    val classification = scene.classification
+                    val state = scene.sceneState
 
-            // Track latest scene state for weather/GPS data
-            launch {
-                sensorAggregator.sceneStateFlow().collectLatest { state ->
-                    latestState = state
-                }
-            }
+                    Log.d(TAG, "Scene: $classification (${scene.minutesInScene}min)")
+                    _currentScene.value = classification
 
-            classifications.collectLatest { classification ->
-                Log.d(TAG, "Scene: $classification")
-                _currentScene.value = classification
-
-                val isNewScene = lastClassification == null || lastClassification != classification
-
-                if (isNewScene) {
-                    val state = latestState ?: SceneState()
+                    // Update place info for UI
+                    val placeDesc = buildPlaceDescription(state)
+                    if (placeDesc.isNotEmpty()) _placeInfo.value = placeDesc
 
                     // Fetch weather (cached, won't block if recent)
                     val weather = if (state.latitude != 0.0) {
@@ -141,7 +145,6 @@ class UnderscoreService : LifecycleService() {
                     // Use narrative engine for song selection
                     val selection = narrativeEngine.selectSong(
                         sceneState = state.copy(
-                            previousClassification = lastClassification,
                             weather = weather?.condition
                         ),
                         classification = classification,
@@ -158,7 +161,7 @@ class UnderscoreService : LifecycleService() {
                         else -> {
                             val isUrgent = selection.transitionType == "urgent"
                             val shift = lastClassification?.let { prev ->
-                                com.underscore.app.context.ContextShift(
+                                ContextShift(
                                     from = prev,
                                     to = classification,
                                     isUrgent = isUrgent
@@ -168,12 +171,17 @@ class UnderscoreService : LifecycleService() {
                         }
                     }
 
-                    updateNotification(classification, selection.title)
+                    updateNotification(classification, selection.title, state.placeType)
+                    lastClassification = classification
                 }
-
-                lastClassification = classification
-            }
         }
+    }
+
+    private fun buildPlaceDescription(state: SceneState): String {
+        val parts = mutableListOf<String>()
+        state.placeType?.let { if (it != "unknown") parts.add(it) }
+        state.zoneCharacter?.let { if (it != "urban") parts.add("($it)") }
+        return parts.joinToString(" ")
     }
 
     private suspend fun analyzeLibraryIfNeeded() {
@@ -227,9 +235,14 @@ class UnderscoreService : LifecycleService() {
             .build()
     }
 
-    private fun updateNotification(scene: SceneClassification, trackTitle: String) {
+    private fun updateNotification(
+        scene: SceneClassification,
+        trackTitle: String,
+        placeType: String? = null
+    ) {
         val sceneName = scene.name.lowercase().replace("_", " ")
-        val notification = buildNotification("$sceneName — $trackTitle")
+        val place = if (placeType != null && placeType != "unknown") " @ $placeType" else ""
+        val notification = buildNotification("$sceneName$place — $trackTitle")
         val manager = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
         manager.notify(NOTIFICATION_ID, notification)
     }
