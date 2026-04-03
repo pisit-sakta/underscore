@@ -85,7 +85,8 @@ No markdown, no explanation outside the JSON.
     fun buildScoringPrompt(
         sceneDescription: String,
         availableTracks: List<TaggedTrackSummary>,
-        recentlyPlayed: List<String> = emptyList()
+        recentlyPlayed: List<String> = emptyList(),
+        protagonistContext: String = ""
     ): String {
         val tracksJson = availableTracks.joinToString(",\n") { track ->
             """{"spotify_uri": "${track.uri}", "title": "${track.title}", "artist": "${track.artist}", "scene_types": ${track.sceneTypes}, "energy_curve": "${track.energyCurve}", "emotional_register": ${track.emotionalRegister}, "best_for": "${track.bestFor}"}"""
@@ -95,9 +96,13 @@ No markdown, no explanation outside the JSON.
             "\n\nRecently played (avoid if possible): ${recentlyPlayed.joinToString(", ")}"
         } else ""
 
+        val profileNote = if (protagonistContext.isNotEmpty()) {
+            "\n\n$protagonistContext"
+        } else ""
+
         return """Current scene state:
 $sceneDescription
-$recentNote
+$profileNote$recentNote
 Available songs:
 [$tracksJson]
 

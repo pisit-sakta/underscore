@@ -1,6 +1,7 @@
 package com.underscore.app.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,7 +12,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -37,13 +40,15 @@ fun MainScreen(
     sensorDebug: SensorDebugInfo,
     onStartScoring: () -> Unit,
     onStopScoring: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onSettings: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(24.dp)
+            .verticalScroll(rememberScrollState())
     ) {
         // Header
         Row(
@@ -59,8 +64,15 @@ fun MainScreen(
                 letterSpacing = 4.sp
             )
 
-            // Connection status dot
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "SETTINGS",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.clickable { onSettings() }
+                )
+                Spacer(modifier = Modifier.width(12.dp))
                 androidx.compose.foundation.Canvas(
                     modifier = Modifier.size(8.dp)
                 ) {
@@ -68,9 +80,9 @@ fun MainScreen(
                         color = if (isSpotifyConnected) Color(0xFF1DB954) else Color.Red
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = if (isSpotifyConnected) "CONNECTED" else "DISCONNECTED",
+                    text = if (isSpotifyConnected) "ON" else "OFF",
                     fontSize = 10.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     letterSpacing = 1.sp
@@ -112,7 +124,7 @@ fun MainScreen(
         // Debug Info
         SensorDebugPanel(sensorDebug)
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Logout
         OutlinedButton(
@@ -125,6 +137,8 @@ fun MainScreen(
                 letterSpacing = 1.sp
             )
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
@@ -137,6 +151,7 @@ data class SensorDebugInfo(
     val scene: String = "UNKNOWN",
     val weather: String = "—",
     val placeInfo: String = "—",
+    val heartRate: String = "—",
     val matchReason: String = "",
     val libraryStatus: String = "Not analyzed"
 )
@@ -163,6 +178,7 @@ fun SensorDebugPanel(info: SensorDebugInfo) {
         DebugRow("GPS", "%.4f, %.4f".format(info.latitude, info.longitude))
         DebugRow("Speed", "%.1f km/h".format(info.speedKmh))
         DebugRow("Motion", info.movementIntensity)
+        DebugRow("Heart", info.heartRate)
         DebugRow("Time", info.timeOfDay)
         DebugRow("Weather", info.weather)
         DebugRow("Place", info.placeInfo)

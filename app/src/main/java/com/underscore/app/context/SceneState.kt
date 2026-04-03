@@ -54,7 +54,10 @@ data class SceneState(
     val zoneCharacter: String? = null,       // "commercial", "nightlife", "cultural", etc.
     val tonalPalette: String? = null,        // Musical descriptors for narrative engine
     val narrativeFunction: String? = null,   // What this place means in the protagonist's story
-    val nearbyLandmarks: List<String> = emptyList()
+    val nearbyLandmarks: List<String> = emptyList(),
+    // Action Layer — heart rate
+    val heartRateBpm: Int = 0,
+    val heartRateState: String = "unknown"   // "resting", "calm", "elevated", "combat_elevated", "maximum"
 )
 
 data class SensorSnapshot(

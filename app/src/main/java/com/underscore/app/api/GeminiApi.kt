@@ -37,14 +37,16 @@ data class GeminiCandidate(
     val content: GeminiContent?
 )
 
-class GeminiApi(private val apiKey: String) {
+class GeminiApi(private val apiKey: String) : LlmProvider {
+
+    override val name: String = "Gemini 3 Flash"
 
     companion object {
         // ⚠️ REPLACE THIS with your Google AI API key
         // Get one at https://aistudio.google.com/app/apikey
         const val DEFAULT_API_KEY = "YOUR_GEMINI_API_KEY_HERE"
         private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-        private const val MODEL = "gemini-3-flash"
+        private const val MODEL = "gemini-3.0-flash"
     }
 
     private val client = OkHttpClient.Builder()
@@ -55,12 +57,12 @@ class GeminiApi(private val apiKey: String) {
     private val gson = Gson()
     private val jsonMediaType = "application/json".toMediaType()
 
-    suspend fun generate(
+    override suspend fun generate(
         prompt: String,
-        systemPrompt: String? = null,
-        temperature: Float = 0.7f,
-        maxTokens: Int = 2048,
-        jsonMode: Boolean = false
+        systemPrompt: String?,
+        temperature: Float,
+        maxTokens: Int,
+        jsonMode: Boolean
     ): String? = withContext(Dispatchers.IO) {
         try {
             val contents = mutableListOf<GeminiContent>()

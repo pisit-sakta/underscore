@@ -11,7 +11,10 @@ import androidx.lifecycle.lifecycleScope
 import com.underscore.app.MainActivity
 import com.underscore.app.R
 import com.underscore.app.UnderscoreApp
+import com.underscore.app.api.ClaudeApi
 import com.underscore.app.api.GeminiApi
+import com.underscore.app.api.LlmProvider
+import com.underscore.app.api.LlmProviderType
 import com.underscore.app.api.SpotifyWebApi
 import com.underscore.app.auth.SpotifyAuth
 import com.underscore.app.context.ClassifiedScene
@@ -19,11 +22,16 @@ import com.underscore.app.context.ContextEngine
 import com.underscore.app.context.ContextShift
 import com.underscore.app.context.SceneClassification
 import com.underscore.app.context.SceneState
+import com.underscore.app.data.KnownLocationManager
+import com.underscore.app.data.SceneHistoryEntry
 import com.underscore.app.data.SongDatabase
+import com.underscore.app.data.UserPreferences
 import com.underscore.app.narrative.LibraryAnalyzer
 import com.underscore.app.narrative.NarrativeEngine
+import com.underscore.app.narrative.ProtagonistProfileManager
 import com.underscore.app.playback.PlaybackController
 import com.underscore.app.playback.TransitionManager
+import com.underscore.app.sensor.HeartRateProvider
 import com.underscore.app.sensor.PlacesProvider
 import com.underscore.app.sensor.SensorAggregator
 import com.underscore.app.sensor.WeatherProvider
@@ -40,6 +48,7 @@ class UnderscoreService : LifecycleService() {
         private const val TAG = "UnderscoreService"
         private const val NOTIFICATION_ID = 1
         private const val ACTION_STOP = "com.underscore.app.STOP_SCORING"
+        private const val ACTION_SKIP = "com.underscore.app.SKIP_SONG"
 
         private val _currentScene = MutableStateFlow(SceneClassification.UNKNOWN)
         val currentScene: StateFlow<SceneClassification> = _currentScene.asStateFlow()
@@ -55,6 +64,9 @@ class UnderscoreService : LifecycleService() {
 
         private val _placeInfo = MutableStateFlow("")
         val placeInfo: StateFlow<String> = _placeInfo.asStateFlow()
+
+        private val _heartRate = MutableStateFlow(0)
+        val heartRate: StateFlow<Int> = _heartRate.asStateFlow()
 
         fun start(context: Context) {
             val intent = Intent(context, UnderscoreService::class.java)
@@ -75,37 +87,71 @@ class UnderscoreService : LifecycleService() {
     private lateinit var transitionManager: TransitionManager
     private lateinit var narrativeEngine: NarrativeEngine
     private lateinit var weatherProvider: WeatherProvider
+    private lateinit var heartRateProvider: HeartRateProvider
+    private lateinit var knownLocationManager: KnownLocationManager
+    private lateinit var profileManager: ProtagonistProfileManager
+    private lateinit var userPrefs: UserPreferences
     private lateinit var db: SongDatabase
 
     private var lastClassification: SceneClassification? = null
+    private var currentSongUri: String? = null
+    private var currentHistoryId: Long? = null
 
     override fun onCreate() {
         super.onCreate()
         Log.d(TAG, "Service created")
 
-        val placesProvider = PlacesProvider(PlacesProvider.DEFAULT_API_KEY)
+        userPrefs = UserPreferences(this)
+        db = SongDatabase.getInstance(this)
+        profileManager = ProtagonistProfileManager(this)
+        knownLocationManager = KnownLocationManager(db)
+
+        // Initialize sensor providers
+        val placesKey = userPrefs.placesApiKey.ifEmpty { PlacesProvider.DEFAULT_API_KEY }
+        val placesProvider = PlacesProvider(placesKey)
         sensorAggregator = SensorAggregator(this, placesProvider)
+        heartRateProvider = HeartRateProvider(this)
         contextEngine = ContextEngine()
         playbackController = PlaybackController(this)
         transitionManager = TransitionManager(playbackController)
-        weatherProvider = WeatherProvider(WeatherProvider.DEFAULT_API_KEY)
-        db = SongDatabase.getInstance(this)
 
-        val geminiApi = GeminiApi(GeminiApi.DEFAULT_API_KEY)
-        narrativeEngine = NarrativeEngine(geminiApi, db)
+        val weatherKey = userPrefs.weatherApiKey.ifEmpty { WeatherProvider.DEFAULT_API_KEY }
+        weatherProvider = WeatherProvider(weatherKey)
+
+        // Initialize LLM provider based on user preference
+        val llmProvider = createLlmProvider()
+        narrativeEngine = NarrativeEngine(llmProvider, db, profileManager)
+    }
+
+    private fun createLlmProvider(): LlmProvider {
+        return when (userPrefs.llmProvider) {
+            LlmProviderType.GEMINI -> {
+                val key = userPrefs.geminiApiKey.ifEmpty { GeminiApi.DEFAULT_API_KEY }
+                GeminiApi(key)
+            }
+            LlmProviderType.CLAUDE -> {
+                val key = userPrefs.claudeApiKey.ifEmpty { ClaudeApi.DEFAULT_API_KEY }
+                ClaudeApi(key)
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
 
-        if (intent?.action == ACTION_STOP) {
-            stopScoring()
-            return START_NOT_STICKY
+        when (intent?.action) {
+            ACTION_STOP -> {
+                stopScoring()
+                return START_NOT_STICKY
+            }
+            ACTION_SKIP -> {
+                handleSkip()
+                return START_STICKY
+            }
         }
 
         startForeground(NOTIFICATION_ID, buildNotification("Starting..."))
         startScoring()
-
         return START_STICKY
     }
 
@@ -114,58 +160,98 @@ class UnderscoreService : LifecycleService() {
         playbackController.connect()
 
         // Analyze library in background if needed
+        lifecycleScope.launch { analyzeLibraryIfNeeded() }
+
+        // Heart rate monitoring (if available)
         lifecycleScope.launch {
-            analyzeLibraryIfNeeded()
+            heartRateProvider.heartRateUpdates().collect { hr ->
+                _heartRate.value = hr.bpm
+            }
         }
 
-        // Main pipeline: sensors → context engine (with debouncing) → narrative engine → play
+        // Main scoring pipeline
         lifecycleScope.launch {
             val sceneStates = sensorAggregator.sceneStateFlow()
             val classifiedScenes = contextEngine.classify(sceneStates)
 
-            // Only react when classification actually changes (debouncing is inside ContextEngine)
             classifiedScenes
                 .distinctUntilChangedBy { it.classification }
                 .collectLatest { scene ->
                     val classification = scene.classification
-                    val state = scene.sceneState
+                    var state = scene.sceneState
 
                     Log.d(TAG, "Scene: $classification (${scene.minutesInScene}min)")
                     _currentScene.value = classification
+
+                    // Inject heart rate into scene state
+                    val hr = heartRateProvider.getLastBpm()
+                    val hrState = heartRateProvider.getLastState()
+                    if (hr > 0) {
+                        state = state.copy(
+                            heartRateBpm = hr,
+                            heartRateState = hrState.name.lowercase()
+                        )
+                    }
 
                     // Update place info for UI
                     val placeDesc = buildPlaceDescription(state)
                     if (placeDesc.isNotEmpty()) _placeInfo.value = placeDesc
 
-                    // Fetch weather (cached, won't block if recent)
+                    // Check known location
+                    val knownLocation = if (state.latitude != 0.0) {
+                        knownLocationManager.checkLocation(
+                            state.latitude, state.longitude, state.placeType
+                        )
+                    } else null
+
+                    // Fetch weather
                     val weather = if (state.latitude != 0.0) {
                         weatherProvider.getWeather(state.latitude, state.longitude)
                     } else null
 
-                    // Use narrative engine for song selection
+                    state = state.copy(weather = weather?.condition)
+
+                    // Select song
                     val selection = narrativeEngine.selectSong(
-                        sceneState = state.copy(
-                            weather = weather?.condition
-                        ),
+                        sceneState = state,
                         classification = classification,
-                        weather = weather?.let { "${it.condition} (${it.description}, ${it.temperatureC}°C)" }
+                        weather = weather?.let { "${it.condition} (${it.description}, ${it.temperatureC}°C)" },
+                        knownLocation = knownLocation
                     )
 
                     Log.d(TAG, "Selected: ${selection.title} by ${selection.artist}")
-                    Log.d(TAG, "Reason: ${selection.matchReason}")
                     _matchReason.value = selection.matchReason
+                    currentSongUri = selection.spotifyUri
 
-                    // Play with appropriate transition
+                    // Log to scene history
+                    val historyEntry = SceneHistoryEntry(
+                        classification = classification.name,
+                        placeType = state.placeType,
+                        zoneCharacter = state.zoneCharacter,
+                        songUri = selection.spotifyUri,
+                        songTitle = selection.title,
+                        songArtist = selection.artist,
+                        matchReason = selection.matchReason,
+                        transitionType = selection.transitionType,
+                        latitude = state.latitude,
+                        longitude = state.longitude,
+                        weather = state.weather,
+                        minutesInScene = scene.minutesInScene
+                    )
+                    currentHistoryId = db.sceneHistoryDao().insert(historyEntry)
+
+                    // Try to develop leitmotifs at known locations
+                    knownLocation?.let {
+                        knownLocationManager.tryDevelopLeitmotif(it.id)
+                    }
+
+                    // Play with transition
                     when (selection.transitionType) {
                         "dramatic_silence" -> transitionManager.dramaticSilence(selection.spotifyUri)
                         else -> {
                             val isUrgent = selection.transitionType == "urgent"
                             val shift = lastClassification?.let { prev ->
-                                ContextShift(
-                                    from = prev,
-                                    to = classification,
-                                    isUrgent = isUrgent
-                                )
+                                ContextShift(from = prev, to = classification, isUrgent = isUrgent)
                             }
                             transitionManager.transition(selection.spotifyUri, shift)
                         }
@@ -174,6 +260,31 @@ class UnderscoreService : LifecycleService() {
                     updateNotification(classification, selection.title, state.placeType)
                     lastClassification = classification
                 }
+        }
+    }
+
+    private fun handleSkip() {
+        // Learning loop: mark current song as skipped
+        val uri = currentSongUri ?: return
+        val historyId = currentHistoryId
+        lifecycleScope.launch {
+            db.taggedSongDao().recordSkip(uri)
+            if (historyId != null) {
+                db.sceneHistoryDao().setFeedback(historyId, "skip")
+            }
+            Log.d(TAG, "Recorded skip for: $uri")
+        }
+    }
+
+    fun recordBoost() {
+        val uri = currentSongUri ?: return
+        val historyId = currentHistoryId
+        lifecycleScope.launch {
+            db.taggedSongDao().recordBoost(uri)
+            if (historyId != null) {
+                db.sceneHistoryDao().setFeedback(historyId, "boost")
+            }
+            Log.d(TAG, "Recorded boost for: $uri")
         }
     }
 
@@ -191,8 +302,8 @@ class UnderscoreService : LifecycleService() {
         _libraryStatus.value = "Checking library..."
 
         val spotifyApi = SpotifyWebApi(token)
-        val geminiApi = GeminiApi(GeminiApi.DEFAULT_API_KEY)
-        val analyzer = LibraryAnalyzer(spotifyApi, geminiApi, db)
+        val llmProvider = createLlmProvider()
+        val analyzer = LibraryAnalyzer(spotifyApi, llmProvider, db)
 
         val count = analyzer.analyzeLibrary(
             maxTracks = 200,

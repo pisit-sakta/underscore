@@ -14,13 +14,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import com.underscore.app.auth.SpotifyAuth
-import com.underscore.app.context.SceneClassification
-import com.underscore.app.playback.NowPlaying
+import com.underscore.app.data.SongDatabase
+import com.underscore.app.data.UserPreferences
 import com.underscore.app.playback.PlaybackController
 import com.underscore.app.service.UnderscoreService
 import com.underscore.app.ui.LoginScreen
 import com.underscore.app.ui.MainScreen
 import com.underscore.app.ui.SensorDebugInfo
+import com.underscore.app.ui.SettingsScreen
 import com.underscore.app.ui.theme.UnderscoreTheme
 import com.underscore.app.updater.AppUpdater
 import com.underscore.app.updater.UpdateInfo
@@ -33,19 +34,15 @@ class MainActivity : ComponentActivity() {
     private lateinit var spotifyAuth: SpotifyAuth
     private lateinit var playbackController: PlaybackController
     private lateinit var appUpdater: AppUpdater
+    private lateinit var userPrefs: UserPreferences
 
-    // Debug sensor state — updated by service broadcasts (simplified for Sprint 0)
     private var sensorDebug by mutableStateOf(SensorDebugInfo())
     private var pendingUpdate by mutableStateOf<UpdateInfo?>(null)
+    private var showSettings by mutableStateOf(false)
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true
-        if (fineGranted) {
-            // Permissions granted — user can now start scoring
-        }
-    }
+    ) { _ -> }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,6 +50,7 @@ class MainActivity : ComponentActivity() {
         spotifyAuth = SpotifyAuth(this)
         playbackController = PlaybackController(this)
         appUpdater = AppUpdater(this)
+        userPrefs = UserPreferences(this)
 
         requestPermissions()
         checkForUpdate()
@@ -99,27 +97,51 @@ class MainActivity : ComponentActivity() {
                 val matchReason by UnderscoreService.matchReason.collectAsState()
                 val libraryStatus by UnderscoreService.libraryStatus.collectAsState()
                 val placeInfo by UnderscoreService.placeInfo.collectAsState()
+                val heartRate by UnderscoreService.heartRate.collectAsState()
 
-                if (!isLoggedIn) {
-                    LoginScreen(
-                        onConnectSpotify = { spotifyAuth.startAuth(this@MainActivity) }
-                    )
-                } else {
-                    MainScreen(
-                        isScoring = isScoring,
-                        isSpotifyConnected = isSpotifyConnected,
-                        nowPlaying = nowPlaying,
-                        currentScene = currentScene,
-                        sensorDebug = SensorDebugInfo(
-                            scene = currentScene.name,
-                            placeInfo = placeInfo.ifEmpty { "—" },
-                            matchReason = matchReason,
-                            libraryStatus = libraryStatus
-                        ),
-                        onStartScoring = { startScoring() },
-                        onStopScoring = { stopScoring() },
-                        onLogout = { logout() }
-                    )
+                when {
+                    !isLoggedIn -> {
+                        LoginScreen(
+                            onConnectSpotify = { spotifyAuth.startAuth(this@MainActivity) }
+                        )
+                    }
+                    showSettings -> {
+                        SettingsScreen(
+                            currentProvider = userPrefs.llmProvider,
+                            geminiKey = userPrefs.geminiApiKey,
+                            claudeKey = userPrefs.claudeApiKey,
+                            weatherKey = userPrefs.weatherApiKey,
+                            placesKey = userPrefs.placesApiKey,
+                            batterySaver = userPrefs.batterySaver,
+                            onProviderChanged = { userPrefs.llmProvider = it },
+                            onGeminiKeyChanged = { userPrefs.geminiApiKey = it },
+                            onClaudeKeyChanged = { userPrefs.claudeApiKey = it },
+                            onWeatherKeyChanged = { userPrefs.weatherApiKey = it },
+                            onPlacesKeyChanged = { userPrefs.placesApiKey = it },
+                            onBatterySaverChanged = { userPrefs.batterySaver = it },
+                            onDeleteAllData = { deleteAllData() },
+                            onBack = { showSettings = false }
+                        )
+                    }
+                    else -> {
+                        MainScreen(
+                            isScoring = isScoring,
+                            isSpotifyConnected = isSpotifyConnected,
+                            nowPlaying = nowPlaying,
+                            currentScene = currentScene,
+                            sensorDebug = SensorDebugInfo(
+                                scene = currentScene.name,
+                                placeInfo = placeInfo.ifEmpty { "—" },
+                                heartRate = if (heartRate > 0) "$heartRate bpm" else "—",
+                                matchReason = matchReason,
+                                libraryStatus = libraryStatus
+                            ),
+                            onStartScoring = { startScoring() },
+                            onStopScoring = { stopScoring() },
+                            onLogout = { logout() },
+                            onSettings = { showSettings = true }
+                        )
+                    }
                 }
             }
         }
@@ -144,7 +166,6 @@ class MainActivity : ComponentActivity() {
             val success = spotifyAuth.handleAuthResponse(resultCode, data)
             if (success) {
                 playbackController.connect()
-                // Force recompose
                 recreate()
             }
         }
@@ -162,6 +183,15 @@ class MainActivity : ComponentActivity() {
         stopScoring()
         playbackController.disconnect()
         spotifyAuth.logout()
+        recreate()
+    }
+
+    private fun deleteAllData() {
+        CoroutineScope(Dispatchers.IO).launch {
+            SongDatabase.getInstance(this@MainActivity).taggedSongDao().deleteAll()
+            userPrefs.deleteAllData()
+        }
+        stopScoring()
         recreate()
     }
 
@@ -186,6 +216,11 @@ class MainActivity : ComponentActivity() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        // Heart rate sensor permission (Wear OS)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+            permissions.add(Manifest.permission.BODY_SENSORS)
         }
 
         val needed = permissions.filter {
