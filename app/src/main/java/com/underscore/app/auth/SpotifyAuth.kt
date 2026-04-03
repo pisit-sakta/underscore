@@ -18,7 +18,7 @@ class SpotifyAuth(private val context: Context) {
 
     companion object {
         // ⚠️ REPLACE THIS with your Spotify Developer App Client ID
-        const val CLIENT_ID = "YOUR_CLIENT_ID_HERE"
+        const val CLIENT_ID = "656f4a5238d54b8795fdf171b4c04acf"
         const val REDIRECT_URI = "underscore://spotify-auth-callback"
         const val AUTH_REQUEST_CODE = 1337
 
