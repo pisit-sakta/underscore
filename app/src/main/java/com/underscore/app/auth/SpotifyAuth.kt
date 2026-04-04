@@ -184,6 +184,10 @@ class SpotifyAuth(private val context: Context) {
             saveToken(accessToken, expiresIn, refreshToken)
             Log.d(TAG, "Token exchange success! Expires in ${expiresIn}s")
 
+            // Mark scope version as current
+            val userPrefs = com.underscore.app.data.UserPreferences(context)
+            userPrefs.markScopeVersionCurrent()
+
             // Clean up
             prefs.edit()
                 .remove("pending_auth_code")

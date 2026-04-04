@@ -77,6 +77,8 @@ class PlaybackController(private val context: Context) {
         )
     }
 
+    private var refreshAttempted = false
+
     fun playTrack(spotifyUri: String) {
         scope.launch {
             val token = spotifyAuth.getAccessToken()
@@ -100,6 +102,7 @@ class PlaybackController(private val context: Context) {
                 when (response.code) {
                     204, 200 -> {
                         AppLog.d(TAG, "Playing: $spotifyUri")
+                        refreshAttempted = false
                     }
                     404 -> {
                         // No active device — try to find one and transfer
@@ -111,10 +114,21 @@ class PlaybackController(private val context: Context) {
                             AppLog.e(TAG, "No Spotify devices found. Open Spotify first.")
                         }
                     }
-                    401 -> {
-                        AppLog.w(TAG, "Token expired, refreshing...")
-                        if (spotifyAuth.refreshAccessToken()) {
-                            playTrack(spotifyUri) // Retry with new token
+                    401, 403 -> {
+                        val errorBody = response.body?.string()?.take(300) ?: ""
+                        if (refreshAttempted) {
+                            AppLog.e(TAG, "Playback failed after refresh (${response.code}). " +
+                                "Re-login required for playback scopes. $errorBody")
+                            refreshAttempted = false
+                        } else {
+                            AppLog.w(TAG, "Token rejected (${response.code}), refreshing once...")
+                            refreshAttempted = true
+                            if (spotifyAuth.refreshAccessToken()) {
+                                playTrack(spotifyUri)
+                            } else {
+                                AppLog.e(TAG, "Token refresh failed. Re-login required.")
+                                refreshAttempted = false
+                            }
                         }
                     }
                     else -> {

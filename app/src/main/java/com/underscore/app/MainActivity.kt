@@ -70,6 +70,12 @@ class MainActivity : ComponentActivity() {
 
         requestPermissions()
         checkForUpdate()
+
+        // Force re-login if Spotify scopes changed (e.g. added playback control)
+        if (spotifyAuth.isLoggedIn() && userPrefs.needsSpotifyRelogin()) {
+            spotifyAuth.logout()
+        }
+
         if (!userPrefs.spotifyHintDismissed && spotifyAuth.isLoggedIn()) {
             showSpotifyHint = true
         }

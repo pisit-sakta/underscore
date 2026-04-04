@@ -18,6 +18,9 @@ class UserPreferences(context: Context) {
         private const val KEY_PLACES_API_KEY = "places_api_key"
         private const val KEY_BATTERY_SAVER = "battery_saver"
         private const val KEY_SPOTIFY_HINT_DISMISSED = "spotify_hint_dismissed"
+        private const val KEY_SPOTIFY_SCOPE_VERSION = "spotify_scope_version"
+        // Bump this when scopes change to force re-login
+        const val CURRENT_SCOPE_VERSION = 2
     }
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -65,6 +68,16 @@ class UserPreferences(context: Context) {
     var spotifyHintDismissed: Boolean
         get() = prefs.getBoolean(KEY_SPOTIFY_HINT_DISMISSED, false)
         set(value) { prefs.edit().putBoolean(KEY_SPOTIFY_HINT_DISMISSED, value).apply() }
+
+    var spotifyScopeVersion: Int
+        get() = prefs.getInt(KEY_SPOTIFY_SCOPE_VERSION, 1)
+        set(value) { prefs.edit().putInt(KEY_SPOTIFY_SCOPE_VERSION, value).apply() }
+
+    fun needsSpotifyRelogin(): Boolean = spotifyScopeVersion < CURRENT_SCOPE_VERSION
+
+    fun markScopeVersionCurrent() {
+        spotifyScopeVersion = CURRENT_SCOPE_VERSION
+    }
 
     fun deleteAllData() {
         prefs.edit().clear().apply()
