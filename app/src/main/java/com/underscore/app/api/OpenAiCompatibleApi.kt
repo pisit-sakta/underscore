@@ -90,6 +90,7 @@ class OpenAiCompatibleApi(
         maxTokens: Int,
         jsonMode: Boolean
     ): String? = withContext(Dispatchers.IO) {
+        lastError = null
         try {
             val messages = mutableListOf<ChatMessage>()
 

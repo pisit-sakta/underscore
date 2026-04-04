@@ -24,12 +24,12 @@ data class SongSelection(
 )
 
 data class GeminiSongSelection(
-    val spotify_uri: String,
-    val title: String,
-    val artist: String,
-    val match_reason: String,
-    val transition_type: String,
-    val transition_duration_ms: Long
+    val spotify_uri: String? = null,
+    val title: String? = null,
+    val artist: String? = null,
+    val match_reason: String? = null,
+    val transition_type: String? = null,
+    val transition_duration_ms: Long = 3000
 )
 
 class NarrativeEngine(
@@ -162,20 +162,24 @@ class NarrativeEngine(
         }
 
         if (response != null) {
+            val cleaned = stripMarkdownFences(response)
             try {
-                val selection = gson.fromJson(response, GeminiSongSelection::class.java)
-                db.taggedSongDao().recordPlay(selection.spotify_uri)
-
-                return SongSelection(
-                    spotifyUri = selection.spotify_uri,
-                    title = selection.title,
-                    artist = selection.artist,
-                    matchReason = selection.match_reason,
-                    transitionType = selection.transition_type,
-                    transitionDurationMs = selection.transition_duration_ms
-                )
+                val selection = gson.fromJson(cleaned, GeminiSongSelection::class.java)
+                if (selection.spotify_uri != null && selection.title != null) {
+                    db.taggedSongDao().recordPlay(selection.spotify_uri)
+                    return SongSelection(
+                        spotifyUri = selection.spotify_uri,
+                        title = selection.title,
+                        artist = selection.artist ?: "Unknown",
+                        matchReason = selection.match_reason ?: "LLM selection",
+                        transitionType = selection.transition_type ?: "normal",
+                        transitionDurationMs = selection.transition_duration_ms
+                    )
+                } else {
+                    AppLog.w(TAG, "LLM returned JSON but missing required fields. Raw: ${cleaned.take(200)}")
+                }
             } catch (e: Exception) {
-                AppLog.e(TAG, "Failed to parse LLM selection", e)
+                AppLog.e(TAG, "Failed to parse LLM selection: ${e.message}. Raw response: ${cleaned.take(300)}", e)
             }
         }
 
@@ -184,6 +188,7 @@ class NarrativeEngine(
         val errorDetail = llmProvider.lastError
         val reason = when {
             !llmProvider.isConfigured -> "Local selection (no API key — set in Settings)"
+            response != null -> "Local selection (LLM response unparseable: ${stripMarkdownFences(response).take(80)})"
             errorDetail != null -> "Local selection ($errorDetail)"
             else -> "Local selection (LLM returned empty)"
         }
@@ -247,7 +252,8 @@ Return JSON with:
         }
 
         return try {
-            val recommendation = gson.fromJson(response, CharacterSongRecommendation::class.java)
+            val cleaned = stripMarkdownFences(response)
+            val recommendation = gson.fromJson(cleaned, CharacterSongRecommendation::class.java)
             AppLog.d(TAG, "Character mode recommends: ${recommendation.title} by ${recommendation.artist}")
 
             // Search Spotify for the recommended track
@@ -272,6 +278,20 @@ Return JSON with:
             AppLog.e(TAG, "Failed to parse character song recommendation", e)
             null
         }
+    }
+
+    /** Strip markdown code fences that LLMs sometimes wrap around JSON. */
+    private fun stripMarkdownFences(text: String): String {
+        var cleaned = text.trim()
+        // Remove ```json ... ``` or ``` ... ```
+        if (cleaned.startsWith("```")) {
+            val firstNewline = cleaned.indexOf('\n')
+            if (firstNewline > 0) cleaned = cleaned.substring(firstNewline + 1)
+        }
+        if (cleaned.endsWith("```")) {
+            cleaned = cleaned.substring(0, cleaned.length - 3)
+        }
+        return cleaned.trim()
     }
 
     private fun stationaryClassifications() = setOf(
