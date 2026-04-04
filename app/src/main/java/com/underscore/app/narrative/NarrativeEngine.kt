@@ -191,13 +191,13 @@ class NarrativeEngine(
         dramaScale: Int = 5
     ): List<TaggedSong> {
         val sceneKeywords = classificationToKeywords(classification)
-        // Drama scale affects energy thresholds:
-        // Low drama (1-3) = prefer calmer tracks even in moderate scenes
-        // High drama (8-10) = allow intense tracks even in calm scenes (ironic-dramatic)
-        val dramaFactor = dramaScale / 10f  // 0.1 to 1.0
+        val dramaFactor = dramaScale / 10f
 
-        val scored = allSongs
-            .filter { it.spotifyUri !in recentUris }
+        // Small library: don't filter out recent songs — too aggressive with few tracks
+        val pool = if (allSongs.size < 20) allSongs
+                   else allSongs.filter { it.spotifyUri !in recentUris }
+
+        val scored = pool
             .map { song ->
                 val songSceneTypes: List<String> = try {
                     gson.fromJson(song.sceneTypes, object : TypeToken<List<String>>() {}.type)
@@ -211,7 +211,6 @@ class NarrativeEngine(
                     SceneClassification.ACTIVE -> if (song.energy > 0.7f) 2 else 0
                     SceneClassification.TRANSIT -> if (song.energy in 0.4f..0.8f) 1 else 0
                     SceneClassification.NIGHT_STATIONARY -> {
-                        // High drama: don't penalize high-energy tracks as hard
                         if (dramaScale >= 8) 0
                         else if (song.energy < 0.4f) 2 else 0
                     }
@@ -223,12 +222,10 @@ class NarrativeEngine(
                     else -> 0
                 }
 
-                // At high drama, give bonus to high-energy tracks in ANY scene
                 val dramaBonus = if (dramaScale >= 8 && song.energy > 0.7f) 1
                     else if (dramaScale <= 3 && song.energy < 0.4f) 1
                     else 0
 
-                // Learning loop: boost songs user liked, penalize skipped
                 val feedbackScore = song.boostCount - song.skipCount
 
                 song to (matchScore + energyScore + dramaBonus + feedbackScore)
@@ -237,6 +234,8 @@ class NarrativeEngine(
             .take(CANDIDATE_POOL_SIZE)
             .map { it.first }
 
+        // Never return empty — if all scored zero, return the full pool so the LLM can decide
+        if (scored.isEmpty()) return pool.take(CANDIDATE_POOL_SIZE)
         return scored
     }
 
