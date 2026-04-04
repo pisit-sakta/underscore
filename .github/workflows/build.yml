@@ -69,5 +69,5 @@ jobs:
           body: |
             Auto-built from commit ${{ github.sha }}
           files: app/build/outputs/apk/debug/underscore-${{ steps.version.outputs.build_num }}.apk
-          prerelease: true
+          prerelease: false
           make_latest: true
