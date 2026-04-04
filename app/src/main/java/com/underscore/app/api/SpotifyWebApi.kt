@@ -183,11 +183,20 @@ class SpotifyWebApi(private val accessToken: String) {
         addUnique(saved)
         Log.d(TAG, "After liked songs: ${tracks.size} unique")
 
-        // 4. User's playlists (first 10 playlists, up to 200 tracks each)
-        val playlists = getMyPlaylists(50) ?: null
-        playlists?.items?.take(10)?.forEach { playlist ->
+        // 4. User's playlists — ALL playlists, ALL tracks
+        val allPlaylists = mutableListOf<PlaylistItem>()
+        var plOffset = 0
+        while (true) {
+            val plResponse = getMyPlaylists(50, plOffset) ?: break
+            allPlaylists.addAll(plResponse.items)
+            if (plResponse.next == null) break
+            plOffset += 50
+        }
+        Log.d(TAG, "Found ${allPlaylists.size} playlists")
+
+        allPlaylists.forEach { playlist ->
             var offset = 0
-            while (offset < 200) {
+            while (true) {
                 val ptResponse = getPlaylistTracks(playlist.id, 50, offset) ?: break
                 addUnique(ptResponse.items.mapNotNull { it.track })
                 if (ptResponse.next == null) break
