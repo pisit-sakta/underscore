@@ -40,6 +40,7 @@ fun DramaSubScreen(
     onBack: () -> Unit
 ) {
     var sliderValue by remember(dramaScale) { mutableStateOf(dramaScale.toFloat()) }
+    var localFoodMode by remember { mutableStateOf(foodAnalogyMode) }
     val currentLevel = DramaScale.getLevel(sliderValue.toInt())
     var expanded by remember { mutableStateOf(false) }
 
@@ -68,7 +69,7 @@ fun DramaSubScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = if (foodAnalogyMode) currentLevel.foodName else currentLevel.name,
+                    text = if (localFoodMode) currentLevel.foodName else currentLevel.name,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface
@@ -83,7 +84,7 @@ fun DramaSubScreen(
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = if (foodAnalogyMode) currentLevel.foodOneLiner else currentLevel.oneLiner,
+                text = if (localFoodMode) currentLevel.foodOneLiner else currentLevel.oneLiner,
                 fontSize = 12.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 lineHeight = 16.sp
@@ -114,7 +115,7 @@ fun DramaSubScreen(
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Switch(checked = foodAnalogyMode, onCheckedChange = onFoodAnalogyChanged)
+                Switch(checked = localFoodMode, onCheckedChange = { localFoodMode = it; onFoodAnalogyChanged(it) })
             }
 
             // Expandable: all levels
@@ -129,8 +130,8 @@ fun DramaSubScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 DramaScale.levels.forEach { level ->
-                    val name = if (foodAnalogyMode) level.foodName else level.name
-                    val desc = if (foodAnalogyMode) level.foodOneLiner else level.oneLiner
+                    val name = if (localFoodMode) level.foodName else level.name
+                    val desc = if (localFoodMode) level.foodOneLiner else level.oneLiner
                     val isActive = level.level == sliderValue.toInt()
                     Text(
                         text = "${level.level}. $name",

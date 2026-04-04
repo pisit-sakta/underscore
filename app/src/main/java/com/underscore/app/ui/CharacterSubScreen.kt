@@ -53,6 +53,8 @@ fun CharacterSubScreen(
     onBack: () -> Unit
 ) {
     var customName by remember { mutableStateOf("") }
+    var localCharacterMode by remember { mutableStateOf(characterModeEnabled) }
+    var localBlendMode by remember { mutableStateOf(blendModeEnabled) }
 
     Column(
         modifier = Modifier
@@ -78,16 +80,16 @@ fun CharacterSubScreen(
             Column {
                 Text("Character Mode", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                 Text(
-                    if (characterModeEnabled && activeCharacterName.isNotBlank()) activeCharacterName
+                    if (localCharacterMode && activeCharacterName.isNotBlank()) activeCharacterName
                     else "Score your life as a character",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Switch(checked = characterModeEnabled, onCheckedChange = onCharacterModeChanged)
+            Switch(checked = localCharacterMode, onCheckedChange = { localCharacterMode = it; onCharacterModeChanged(it) })
         }
 
-        if (characterModeEnabled) {
+        if (localCharacterMode) {
             Spacer(modifier = Modifier.height(16.dp))
 
             // Active character preview
@@ -191,10 +193,10 @@ fun CharacterSubScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Switch(checked = blendModeEnabled, onCheckedChange = onBlendModeChanged)
+                Switch(checked = localBlendMode, onCheckedChange = { localBlendMode = it; onBlendModeChanged(it) })
             }
 
-            if (blendModeEnabled && characters.isNotEmpty()) {
+            if (localBlendMode && characters.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 val slots = listOf(
                     Triple("MORNING", "06:00 – 12:00", blendMorning),

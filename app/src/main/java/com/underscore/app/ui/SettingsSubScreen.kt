@@ -49,6 +49,7 @@ fun SettingsSubScreen(
 ) {
     var selectedProvider by remember { mutableStateOf(state.provider) }
     var savedToast by remember { mutableStateOf(false) }
+    var localBatterySaver by remember { mutableStateOf(state.batterySaver) }
 
     Column(
         modifier = Modifier
@@ -231,7 +232,7 @@ fun SettingsSubScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Switch(checked = state.batterySaver, onCheckedChange = onBatterySaverChanged)
+            Switch(checked = localBatterySaver, onCheckedChange = { localBatterySaver = it; onBatterySaverChanged(it) })
         }
 
         Spacer(modifier = Modifier.height(24.dp))
