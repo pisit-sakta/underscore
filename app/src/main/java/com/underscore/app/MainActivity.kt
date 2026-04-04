@@ -326,6 +326,20 @@ class MainActivity : ComponentActivity() {
                                     activeCharacterProfile = db.characterProfileDao().getByName(name)
                                 }
                             },
+                            onDeleteCharacter = { character ->
+                                CoroutineScope(Dispatchers.Main).launch {
+                                    withContext(Dispatchers.IO) {
+                                        db.characterProfileDao().deleteCustom(character.name)
+                                    }
+                                    characterList = withContext(Dispatchers.IO) {
+                                        db.characterProfileDao().getAll()
+                                    }
+                                    if (userPrefs.activeCharacterName == character.name) {
+                                        userPrefs.activeCharacterName = ""
+                                        activeCharacterProfile = null
+                                    }
+                                }
+                            },
                             onGenerateCharacter = { name ->
                                 isGeneratingCharacter = true
                                 characterError = null

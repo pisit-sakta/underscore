@@ -43,6 +43,7 @@ fun CharacterSubScreen(
     characterError: String? = null,
     onCharacterModeChanged: (Boolean) -> Unit,
     onCharacterSelected: (String) -> Unit,
+    onDeleteCharacter: (CharacterProfile) -> Unit,
     onGenerateCharacter: (String) -> Unit,
     onBack: () -> Unit
 ) {
@@ -167,6 +168,21 @@ fun CharacterSubScreen(
                             fontSize = 9.sp,
                             color = Color(0xFF7C3AED),
                             letterSpacing = 1.sp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "\u2715",
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .clickable {
+                                    if (localActiveCharacter == character.name) {
+                                        localActiveCharacter = ""
+                                    }
+                                    onDeleteCharacter(character)
+                                }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
                 }
