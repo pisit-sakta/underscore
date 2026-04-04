@@ -42,11 +42,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Spotify Auth redirect activity -->
-        <activity
-            android:name="com.spotify.sdk.android.auth.LoginActivity"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
-
         <service
             android:name=".service.UnderscoreService"
             android:exported="false"
