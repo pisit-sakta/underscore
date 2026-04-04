@@ -189,18 +189,6 @@ class MainActivity : ComponentActivity() {
         playbackController.disconnect()
     }
 
-    @Deprecated("Use Activity Result APIs")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == SpotifyAuth.AUTH_REQUEST_CODE) {
-            val success = spotifyAuth.handleAuthResponse(resultCode, data)
-            if (success) {
-                playbackController.connect()
-                recreate()
-            }
-        }
-    }
-
     private fun startScoring() {
         UnderscoreService.start(this)
     }
