@@ -159,12 +159,18 @@ class UnderscoreService : LifecycleService() {
     private fun createLlmProvider(): LlmProvider {
         return when (userPrefs.llmProvider) {
             LlmProviderType.GEMINI -> {
-                val key = userPrefs.geminiApiKey.ifEmpty { GeminiApi.DEFAULT_API_KEY }
-                GeminiApi(key)
+                val key = userPrefs.geminiApiKey
+                if (key.isBlank()) {
+                    AppLog.w(TAG, "No Gemini API key configured — LLM features will be unavailable")
+                }
+                GeminiApi(key.ifEmpty { GeminiApi.DEFAULT_API_KEY })
             }
             LlmProviderType.CLAUDE -> {
-                val key = userPrefs.claudeApiKey.ifEmpty { ClaudeApi.DEFAULT_API_KEY }
-                ClaudeApi(key)
+                val key = userPrefs.claudeApiKey
+                if (key.isBlank()) {
+                    AppLog.w(TAG, "No Claude API key configured — LLM features will be unavailable")
+                }
+                ClaudeApi(key.ifEmpty { ClaudeApi.DEFAULT_API_KEY })
             }
             LlmProviderType.OPENAI_COMPATIBLE -> {
                 val url = userPrefs.customApiUrl
@@ -173,9 +179,11 @@ class UnderscoreService : LifecycleService() {
                 if (url.isNotBlank() && model.isNotBlank()) {
                     OpenAiCompatibleApi(baseUrl = url, model = model, apiKey = key)
                 } else {
-                    // Fallback to Gemini if custom not configured
-                    val geminiKey = userPrefs.geminiApiKey.ifEmpty { GeminiApi.DEFAULT_API_KEY }
-                    GeminiApi(geminiKey)
+                    val geminiKey = userPrefs.geminiApiKey
+                    if (geminiKey.isBlank()) {
+                        AppLog.w(TAG, "No API key configured — LLM features will be unavailable")
+                    }
+                    GeminiApi(geminiKey.ifEmpty { GeminiApi.DEFAULT_API_KEY })
                 }
             }
         }
@@ -472,13 +480,13 @@ class UnderscoreService : LifecycleService() {
         val analyzer = LibraryAnalyzer(spotifyApi, llmProvider, db)
 
         val count = analyzer.analyzeLibrary(
-            maxTracks = 200,
             onProgress = { analyzed, total ->
                 _libraryStatus.value = "Analyzing: $analyzed / $total"
             }
         )
 
-        _libraryStatus.value = "$count songs ready"
+        val suffix = if (!llmProvider.isConfigured) " (basic tags — no API key)" else ""
+        _libraryStatus.value = "$count songs ready$suffix"
     }
 
     private fun stopScoring() {

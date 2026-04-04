@@ -34,44 +34,50 @@ class LibraryAnalyzer(
     private val gson = Gson()
 
     suspend fun analyzeLibrary(
-        maxTracks: Int = 200,
         onProgress: (analyzed: Int, total: Int) -> Unit = { _, _ -> }
     ): Int {
-        // Check if we already have a tagged library
+        // Check how many songs we already have tagged
         val existingCount = db.taggedSongDao().count()
-        if (existingCount > 50) {
-            Log.d(TAG, "Library already analyzed ($existingCount songs). Skipping.")
-            return existingCount
-        }
 
-        Log.d(TAG, "Fetching saved tracks from Spotify...")
-        val tracks = spotifyApi.getAllSavedTracks(maxTracks)
+        Log.d(TAG, "Fetching saved tracks from Spotify (existing tags: $existingCount)...")
+        val tracks = spotifyApi.getAllSavedTracks()
         if (tracks.isEmpty()) {
             Log.w(TAG, "No saved tracks found")
-            return 0
+            return existingCount
         }
-        Log.d(TAG, "Found ${tracks.size} tracks")
+        Log.d(TAG, "Found ${tracks.size} tracks from Spotify")
 
-        // Fetch audio features
-        val trackIds = tracks.map { it.id }
+        // Skip tracks that are already tagged
+        val existingUris = db.taggedSongDao().getAllUris().toSet()
+        val newTracks = tracks.filter { it.uri !in existingUris }
+        if (newTracks.isEmpty()) {
+            Log.d(TAG, "All ${tracks.size} tracks already tagged. Skipping.")
+            return existingCount
+        }
+        Log.d(TAG, "${newTracks.size} new tracks to analyze (${existingUris.size} already tagged)")
+
+        // Fetch audio features for new tracks only
+        val trackIds = newTracks.map { it.id }
         val audioFeatures = spotifyApi.getAudioFeatures(trackIds)
         val featuresMap = audioFeatures.associateBy { it.id }
 
-        // Batch-tag via Gemini
+        // Batch-tag via LLM (falls back to audio-feature tags if LLM unavailable)
         var analyzed = 0
-        tracks.chunked(BATCH_SIZE).forEach { batch ->
+        val totalNew = newTracks.size
+        newTracks.chunked(BATCH_SIZE).forEach { batch ->
             val taggedBatch = tagBatch(batch, featuresMap)
             if (taggedBatch.isNotEmpty()) {
                 db.taggedSongDao().insertAll(taggedBatch)
                 analyzed += taggedBatch.size
-                onProgress(analyzed, tracks.size)
+                onProgress(existingCount + analyzed, existingCount + totalNew)
             }
-            // Rate limit: don't hammer Gemini
+            // Rate limit: don't hammer the LLM
             delay(1000)
         }
 
-        Log.d(TAG, "Library analysis complete: $analyzed songs tagged")
-        return analyzed
+        val totalCount = existingCount + analyzed
+        Log.d(TAG, "Library analysis complete: $analyzed new songs tagged ($totalCount total)")
+        return totalCount
     }
 
     private suspend fun tagBatch(

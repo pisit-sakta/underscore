@@ -1,6 +1,10 @@
 package com.underscore.app.ui
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -21,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,150 +47,197 @@ fun MainScreen(
     characterColor1: String? = null,
     characterColor2: String? = null,
     characterName: String? = null,
+    characterTagline: String? = null,
+    characterFranchise: String? = null,
     onStartScoring: () -> Unit,
     onStopScoring: () -> Unit,
     onLogout: () -> Unit,
     onSettings: () -> Unit = {}
 ) {
     val hasCharacter = characterColor1 != null && characterColor2 != null
+    val bgColor = Color(0xFF0A0A0A)
 
-    val mainContent: @Composable () -> Unit = {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .then(
-                if (!hasCharacter) Modifier.background(MaterialTheme.colorScheme.background)
-                else Modifier
-            )
-            .padding(24.dp)
-            .verticalScroll(rememberScrollState())
+    // Animated colors: smooth 600ms transition when character changes or mode toggles
+    val targetColor1 = if (hasCharacter) parseHexColor(characterColor1!!) else bgColor
+    val targetColor2 = if (hasCharacter) parseHexColor(characterColor2!!) else bgColor
+
+    val animatedColor1 by animateColorAsState(
+        targetValue = targetColor1,
+        animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing),
+        label = "splitColor1"
+    )
+    val animatedColor2 by animateColorAsState(
+        targetValue = targetColor2,
+        animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing),
+        label = "splitColor2"
+    )
+
+    // Adaptive text color based on the top-left triangle (where header lives)
+    val headerTextColor = textColorForBackground(animatedColor1)
+
+    DiagonalSplitBackground(
+        color1 = animatedColor1,
+        color2 = animatedColor2
     ) {
-        // Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState())
         ) {
-            Text(
-                text = "_ UNDERSCORE",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Light,
-                color = MaterialTheme.colorScheme.onBackground,
-                letterSpacing = 4.sp
-            )
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
-                    text = "SETTINGS",
-                    fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.primary,
-                    letterSpacing = 1.sp,
-                    modifier = Modifier.clickable { onSettings() }
+                    text = "_ UNDERSCORE",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Light,
+                    color = headerTextColor,
+                    letterSpacing = 4.sp
                 )
-                Spacer(modifier = Modifier.width(12.dp))
-                androidx.compose.foundation.Canvas(
-                    modifier = Modifier.size(8.dp)
-                ) {
-                    drawCircle(
-                        color = if (isSpotifyConnected) Color(0xFF1DB954) else Color.Red
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "SETTINGS",
+                        fontSize = 10.sp,
+                        color = headerTextColor.copy(alpha = 0.8f),
+                        letterSpacing = 1.sp,
+                        modifier = Modifier.clickable { onSettings() }
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    androidx.compose.foundation.Canvas(
+                        modifier = Modifier.size(8.dp)
+                    ) {
+                        drawCircle(
+                            color = if (isSpotifyConnected) Color(0xFF1DB954) else Color.Red
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (isSpotifyConnected) "ON" else "OFF",
+                        fontSize = 10.sp,
+                        color = headerTextColor.copy(alpha = 0.6f),
+                        letterSpacing = 1.sp
                     )
                 }
-                Spacer(modifier = Modifier.width(4.dp))
+            }
+
+            if (versionName.isNotEmpty()) {
                 Text(
-                    text = if (isSpotifyConnected) "ON" else "OFF",
+                    text = versionName,
                     fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = headerTextColor.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(if (characterName != null) 20.dp else 32.dp))
+
+            // Character panel — prominent display when character mode is active
+            if (characterName != null && hasCharacter) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.Black.copy(alpha = 0.35f))
+                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+                        .padding(20.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Color split preview
+                        MiniDiagonalSplit(
+                            color1 = animatedColor1,
+                            color2 = animatedColor2,
+                            modifier = Modifier
+                                .height(40.dp)
+                                .width(40.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                text = characterName.uppercase(),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White,
+                                letterSpacing = 2.sp
+                            )
+                            if (characterFranchise != null) {
+                                Text(
+                                    text = characterFranchise,
+                                    fontSize = 12.sp,
+                                    color = Color.White.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
+                    }
+                    if (characterTagline != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "\"${characterTagline}\"",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Light,
+                            color = Color.White.copy(alpha = 0.7f),
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+
+            // Now Playing
+            NowPlayingCard(
+                nowPlaying = nowPlaying,
+                scene = currentScene
+            )
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Start/Stop Button
+            Button(
+                onClick = if (isScoring) onStopScoring else onStartScoring,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isScoring) Color(0xFF333333) else MaterialTheme.colorScheme.primary
+                )
+            ) {
+                Text(
+                    text = if (isScoring) "STOP SCORING" else "START SCORING",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 3.sp,
+                    color = if (isScoring) Color.White else Color.Black
+                )
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Debug Info
+            SensorDebugPanel(sensorDebug)
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Logout
+            OutlinedButton(
+                onClick = onLogout,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "DISCONNECT SPOTIFY",
+                    fontSize = 12.sp,
                     letterSpacing = 1.sp
                 )
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
         }
-
-        if (versionName.isNotEmpty() || characterName != null) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                if (versionName.isNotEmpty()) {
-                    Text(
-                        text = versionName,
-                        fontSize = 10.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                if (characterName != null) {
-                    Text(
-                        text = characterName.uppercase(),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color.White.copy(alpha = 0.7f),
-                        letterSpacing = 2.sp
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // Now Playing
-        NowPlayingCard(
-            nowPlaying = nowPlaying,
-            scene = currentScene
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Start/Stop Button
-        Button(
-            onClick = if (isScoring) onStopScoring else onStartScoring,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (isScoring) Color(0xFF333333) else MaterialTheme.colorScheme.primary
-            )
-        ) {
-            Text(
-                text = if (isScoring) "STOP SCORING" else "START SCORING",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 3.sp,
-                color = if (isScoring) Color.White else Color.Black
-            )
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // Debug Info
-        SensorDebugPanel(sensorDebug)
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Logout
-        OutlinedButton(
-            onClick = onLogout,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                text = "DISCONNECT SPOTIFY",
-                fontSize = 12.sp,
-                letterSpacing = 1.sp
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-    }
-    } // end mainContent
-
-    // Render: diagonal split background when character mode active, else plain
-    if (hasCharacter) {
-        DiagonalSplitBackground(
-            color1 = parseHexColor(characterColor1!!),
-            color2 = parseHexColor(characterColor2!!)
-        ) {
-            mainContent()
-        }
-    } else {
-        mainContent()
     }
 }
 
@@ -209,7 +261,8 @@ fun SensorDebugPanel(info: SensorDebugInfo) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.92f))
+            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(12.dp))
             .padding(16.dp)
     ) {
         Text(

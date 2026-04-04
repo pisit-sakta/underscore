@@ -41,6 +41,9 @@ data class GeminiCandidate(
 class GeminiApi(private val apiKey: String) : LlmProvider {
 
     override val name: String = "Gemini 3 Flash"
+    override val isConfigured: Boolean = apiKey != DEFAULT_API_KEY && apiKey.isNotBlank()
+    override var lastError: String? = null
+        private set
 
     companion object {
         private const val TAG = "GeminiApi"
@@ -60,12 +63,14 @@ class GeminiApi(private val apiKey: String) : LlmProvider {
 
         if (response.code == 503 || response.code == 429) {
             val errorBody = response.body?.string()?.take(300)
+            lastError = "$model overloaded (${response.code})"
             AppLog.w(TAG, "$model overloaded (${response.code}): $errorBody")
             return null
         }
 
         if (!response.isSuccessful) {
             val errorBody = response.body?.string()?.take(500)
+            lastError = "Gemini ${response.code}: ${errorBody?.take(100)}"
             AppLog.e(TAG, "Gemini API error ${response.code}: $errorBody")
             return null
         }
@@ -102,11 +107,13 @@ class GeminiApi(private val apiKey: String) : LlmProvider {
         maxTokens: Int,
         jsonMode: Boolean
     ): String? = withContext(Dispatchers.IO) {
-        if (apiKey == DEFAULT_API_KEY) {
+        if (apiKey == DEFAULT_API_KEY || apiKey.isBlank()) {
+            lastError = "No API key configured"
             AppLog.w(TAG, "generate() called with placeholder API key — skipping")
             return@withContext null
         }
 
+        lastError = null
         try {
             val contents = mutableListOf<GeminiContent>()
 
@@ -142,6 +149,7 @@ class GeminiApi(private val apiKey: String) : LlmProvider {
             AppLog.d(TAG, "Primary model unavailable, falling back to $FALLBACK_MODEL")
             callModel(FALLBACK_MODEL, body, prompt.length)
         } catch (e: Exception) {
+            lastError = "Network error: ${e.message}"
             AppLog.e(TAG, "Gemini request failed: ${e.message}", e)
             null
         }

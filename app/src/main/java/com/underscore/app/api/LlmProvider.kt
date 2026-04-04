@@ -2,6 +2,10 @@ package com.underscore.app.api
 
 interface LlmProvider {
     val name: String
+    /** Whether a real API key is configured (not a placeholder or empty). */
+    val isConfigured: Boolean
+    /** Last error message from a failed generate() call, if any. */
+    val lastError: String?
     suspend fun generate(
         prompt: String,
         systemPrompt: String? = null,

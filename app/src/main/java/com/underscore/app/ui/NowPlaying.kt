@@ -28,7 +28,7 @@ fun NowPlayingCard(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.90f))
             .padding(24.dp)
     ) {
         Text(
