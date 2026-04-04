@@ -162,7 +162,7 @@ class NarrativeEngine(
             prompt = prompt,
             systemPrompt = Prompts.SCENE_SCORER,
             temperature = 0.6f,
-            maxTokens = 512,
+            maxTokens = 1024,
             jsonMode = true
         )
 
@@ -251,7 +251,7 @@ Return JSON with:
             prompt = prompt,
             systemPrompt = Prompts.SCENE_SCORER,
             temperature = 0.7f,
-            maxTokens = 512,
+            maxTokens = 1024,
             jsonMode = true
         )
 
@@ -336,7 +336,7 @@ Return JSON with:
             prompt = prompt,
             systemPrompt = Prompts.SCENE_SCORER,
             temperature = 0.7f,
-            maxTokens = 512,
+            maxTokens = 1024,
             jsonMode = true
         )
 
