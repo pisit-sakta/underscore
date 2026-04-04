@@ -94,7 +94,7 @@ class MainActivity : ComponentActivity() {
                                         Text("Downloading... ${dlProgress.percent}%")
                                         Spacer(modifier = Modifier.height(8.dp))
                                         LinearProgressIndicator(
-                                            progress = { dlProgress.percent / 100f },
+                                            progress = dlProgress.percent / 100f,
                                             modifier = Modifier.fillMaxWidth()
                                         )
                                     }
