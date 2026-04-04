@@ -25,8 +25,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.underscore.app.auth.SpotifyAuth
+import com.underscore.app.data.CharacterProfile
+import com.underscore.app.data.PresetCharacters
 import com.underscore.app.data.SongDatabase
 import com.underscore.app.data.UserPreferences
+import com.underscore.app.narrative.CharacterGenerator
 import com.underscore.app.debug.LogCollector
 import com.underscore.app.playback.NowPlaying
 import com.underscore.app.playback.PlaybackController
@@ -55,6 +58,9 @@ class MainActivity : ComponentActivity() {
     private var pendingUpdate by mutableStateOf<UpdateInfo?>(null)
     private var showSettings by mutableStateOf(false)
     private var showSpotifyHint by mutableStateOf(false)
+    private var characterList by mutableStateOf<List<CharacterProfile>>(emptyList())
+    private var isGeneratingCharacter by mutableStateOf(false)
+    private var activeCharacterProfile by mutableStateOf<CharacterProfile?>(null)
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -70,6 +76,18 @@ class MainActivity : ComponentActivity() {
 
         requestPermissions()
         checkForUpdate()
+
+        // Install preset characters + load character list
+        val db = SongDatabase.getInstance(this)
+        CoroutineScope(Dispatchers.IO).launch {
+            PresetCharacters.installPresets(db.characterProfileDao())
+            characterList = db.characterProfileDao().getAll()
+            // Load active character if set
+            val activeName = userPrefs.activeCharacterName
+            if (activeName.isNotBlank() && userPrefs.characterModeEnabled) {
+                activeCharacterProfile = db.characterProfileDao().getByName(activeName)
+            }
+        }
 
         // Force re-login if Spotify scopes changed (e.g. added playback control)
         if (spotifyAuth.isLoggedIn() && userPrefs.needsSpotifyRelogin()) {
@@ -228,7 +246,11 @@ class MainActivity : ComponentActivity() {
                                 dramaScale = userPrefs.dramaScale,
                                 foodAnalogyMode = userPrefs.foodAnalogyMode,
                                 customMood = userPrefs.getActiveMood() ?: "",
-                                moodExpiresAt = userPrefs.moodExpiresAt
+                                moodExpiresAt = userPrefs.moodExpiresAt,
+                                characterModeEnabled = userPrefs.characterModeEnabled,
+                                activeCharacterName = userPrefs.activeCharacterName,
+                                characters = characterList,
+                                isGeneratingCharacter = isGeneratingCharacter
                             ),
                             onProviderChanged = {
                                 userPrefs.llmProvider = it
@@ -252,6 +274,57 @@ class MainActivity : ComponentActivity() {
                                 userPrefs.setMoodWithDuration(mood, durationMs)
                             },
                             onMoodCleared = { userPrefs.clearMood() },
+                            onCharacterModeChanged = { enabled ->
+                                userPrefs.characterModeEnabled = enabled
+                                if (!enabled) activeCharacterProfile = null
+                                else {
+                                    val name = userPrefs.activeCharacterName
+                                    if (name.isNotBlank()) {
+                                        CoroutineScope(Dispatchers.IO).launch {
+                                            activeCharacterProfile = db.characterProfileDao().getByName(name)
+                                        }
+                                    }
+                                }
+                            },
+                            onCharacterSelected = { name ->
+                                userPrefs.activeCharacterName = name
+                                CoroutineScope(Dispatchers.IO).launch {
+                                    activeCharacterProfile = db.characterProfileDao().getByName(name)
+                                }
+                            },
+                            onGenerateCharacter = { name ->
+                                isGeneratingCharacter = true
+                                CoroutineScope(Dispatchers.IO).launch {
+                                    try {
+                                        val llmProvider = when (userPrefs.llmProvider) {
+                                            com.underscore.app.api.LlmProviderType.GEMINI -> {
+                                                val key = userPrefs.geminiApiKey.ifEmpty { com.underscore.app.api.GeminiApi.DEFAULT_API_KEY }
+                                                com.underscore.app.api.GeminiApi(key)
+                                            }
+                                            com.underscore.app.api.LlmProviderType.CLAUDE -> {
+                                                val key = userPrefs.claudeApiKey.ifEmpty { com.underscore.app.api.ClaudeApi.DEFAULT_API_KEY }
+                                                com.underscore.app.api.ClaudeApi(key)
+                                            }
+                                            else -> {
+                                                val key = userPrefs.geminiApiKey.ifEmpty { com.underscore.app.api.GeminiApi.DEFAULT_API_KEY }
+                                                com.underscore.app.api.GeminiApi(key)
+                                            }
+                                        }
+                                        val generator = CharacterGenerator(llmProvider)
+                                        val profile = generator.generate(name)
+                                        if (profile != null) {
+                                            db.characterProfileDao().insert(profile)
+                                            characterList = db.characterProfileDao().getAll()
+                                            userPrefs.activeCharacterName = profile.name
+                                            activeCharacterProfile = profile
+                                        }
+                                    } catch (e: Exception) {
+                                        com.underscore.app.debug.AppLog.e("MainActivity", "Character generation failed: ${e.message}", e)
+                                    } finally {
+                                        isGeneratingCharacter = false
+                                    }
+                                }
+                            },
                             onDeleteAllData = { deleteAllData() },
                             onShareDebugReport = { LogCollector(this@MainActivity).reportBug() },
                             onBack = { showSettings = false }
@@ -277,6 +350,9 @@ class MainActivity : ComponentActivity() {
                                 libraryStatus = libraryStatus
                             ),
                             versionName = getVersionName(),
+                            characterColor1 = activeCharacterProfile?.color1,
+                            characterColor2 = activeCharacterProfile?.color2,
+                            characterName = if (userPrefs.characterModeEnabled) activeCharacterProfile?.name else null,
                             onStartScoring = { startScoring() },
                             onStopScoring = { stopScoring() },
                             onLogout = { logout() },

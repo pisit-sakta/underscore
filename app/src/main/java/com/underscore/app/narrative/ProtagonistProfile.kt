@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import com.google.gson.Gson
+import com.underscore.app.data.CharacterProfile
 
 data class ProtagonistProfile(
     val name: String = "The Phantom Operative",
@@ -97,6 +98,28 @@ class ProtagonistProfileManager(context: Context) {
             if (character != null) {
                 appendLine("ACTIVE CHARACTER MODE: $character — constrain song selection to fit this character's franchise and emotional architecture")
             }
+        }
+    }
+
+    /**
+     * Build a rich prompt context from a CharacterProfile entity (from Room DB).
+     * This is used when character mode is active and we have a full profile.
+     */
+    fun buildCharacterPromptContext(character: CharacterProfile): String {
+        return buildString {
+            appendLine("CHARACTER MODE ACTIVE: ${character.name}")
+            appendLine("Franchise: ${character.franchise}")
+            appendLine("Narrative aesthetic: ${character.narrativeAesthetic}")
+            appendLine("Primary genres: ${character.primaryGenres}")
+            appendLine("Transition style: ${character.transitionStyle}")
+            appendLine("Humor preference: ${character.humorPreference}")
+            appendLine()
+            appendLine("EMOTIONAL ARCHITECTURE (how to score each situation for this character):")
+            appendLine(character.emotionalArchitecture)
+            appendLine()
+            appendLine("INSTRUCTION: You are scoring the user's life AS ${character.name}. ")
+            appendLine("All song selections must honor this character's franchise aesthetic, ")
+            appendLine("emotional architecture, and narrative tone. The user IS this character right now.")
         }
     }
 

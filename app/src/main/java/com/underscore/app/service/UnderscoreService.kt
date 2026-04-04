@@ -343,14 +343,20 @@ class UnderscoreService : LifecycleService() {
         state = state.copy(weather = weather?.condition)
         _weather.value = weather?.let { "${it.condition} ${it.temperatureC}°C" } ?: "—"
 
-        // Select song (drama + mood read live so changes take effect on next pick)
+        // Load active character profile if character mode is on
+        val characterProfile = if (userPrefs.characterModeEnabled && userPrefs.activeCharacterName.isNotBlank()) {
+            db.characterProfileDao().getByName(userPrefs.activeCharacterName)
+        } else null
+
+        // Select song (drama + mood + character read live so changes take effect on next pick)
         val selection = narrativeEngine.selectSong(
             sceneState = state,
             classification = classification,
             weather = weather?.let { "${it.condition} (${it.description}, ${it.temperatureC}°C)" },
             knownLocation = knownLocation,
             dramaScale = userPrefs.dramaScale,
-            customMood = userPrefs.getActiveMood()
+            customMood = userPrefs.getActiveMood(),
+            characterProfile = characterProfile
         )
 
         AppLog.d(TAG, "Selected: ${selection.title} by ${selection.artist}")

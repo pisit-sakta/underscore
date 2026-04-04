@@ -54,7 +54,11 @@ data class SettingsState(
     val dramaScale: Int = 5,
     val foodAnalogyMode: Boolean = false,
     val customMood: String = "",
-    val moodExpiresAt: Long = 0L
+    val moodExpiresAt: Long = 0L,
+    val characterModeEnabled: Boolean = false,
+    val activeCharacterName: String = "",
+    val characters: List<com.underscore.app.data.CharacterProfile> = emptyList(),
+    val isGeneratingCharacter: Boolean = false
 )
 
 @Composable
@@ -73,6 +77,9 @@ fun SettingsScreen(
     onFoodAnalogyChanged: (Boolean) -> Unit,
     onMoodChanged: (String, Long) -> Unit,
     onMoodCleared: () -> Unit,
+    onCharacterModeChanged: (Boolean) -> Unit,
+    onCharacterSelected: (String) -> Unit,
+    onGenerateCharacter: (String) -> Unit,
     onDeleteAllData: () -> Unit,
     onShareDebugReport: () -> Unit,
     onBack: () -> Unit
@@ -202,6 +209,19 @@ fun SettingsScreen(
                 HintText("Sent as 'Authorization: Bearer <key>'. Leave empty for local LLMs that don't require auth.")
             }
         }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ── Character Mode ──
+        CharacterModeSection(
+            enabled = state.characterModeEnabled,
+            activeCharacterName = state.activeCharacterName,
+            characters = state.characters,
+            isGenerating = state.isGeneratingCharacter,
+            onToggle = onCharacterModeChanged,
+            onCharacterSelected = onCharacterSelected,
+            onGenerateCharacter = onGenerateCharacter
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -498,6 +518,220 @@ private fun SetupGuide(title: String, steps: List<String>, note: String) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 lineHeight = 14.sp
             )
+        }
+    }
+}
+
+@Composable
+private fun CharacterModeSection(
+    enabled: Boolean,
+    activeCharacterName: String,
+    characters: List<com.underscore.app.data.CharacterProfile>,
+    isGenerating: Boolean,
+    onToggle: (Boolean) -> Unit,
+    onCharacterSelected: (String) -> Unit,
+    onGenerateCharacter: (String) -> Unit
+) {
+    var customName by remember { mutableStateOf("") }
+
+    SectionHeader("CHARACTER MODE")
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(12.dp)
+    ) {
+        // Toggle
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text("Character Mode", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+                Text(
+                    if (enabled && activeCharacterName.isNotBlank()) activeCharacterName
+                    else "Score your life as a character",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Switch(checked = enabled, onCheckedChange = onToggle)
+        }
+
+        if (enabled) {
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Active character color preview
+            if (activeCharacterName.isNotBlank()) {
+                val activeChar = characters.find { it.name == activeCharacterName }
+                if (activeChar != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Color preview boxes
+                        androidx.compose.foundation.Canvas(
+                            modifier = Modifier
+                                .height(24.dp)
+                                .width(48.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                        ) {
+                            val w = size.width
+                            val h = size.height
+                            val path1 = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(0f, 0f); lineTo(w, 0f); lineTo(0f, h); close()
+                            }
+                            val path2 = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(w, 0f); lineTo(w, h); lineTo(0f, h); close()
+                            }
+                            drawPath(path1, parseHexColor(activeChar.color1))
+                            drawPath(path2, parseHexColor(activeChar.color2))
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                activeChar.tagline,
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                activeChar.franchise,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            }
+
+            // Character list
+            Text(
+                "SELECT CHARACTER",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary,
+                letterSpacing = 1.sp
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+
+            characters.forEach { character ->
+                val isActive = character.name == activeCharacterName
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 2.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(
+                            if (isActive) MaterialTheme.colorScheme.primaryContainer
+                            else Color.Transparent
+                        )
+                        .clickable { onCharacterSelected(character.name) }
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Mini color preview
+                    androidx.compose.foundation.Canvas(
+                        modifier = Modifier
+                            .height(16.dp)
+                            .width(16.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                    ) {
+                        drawRect(parseHexColor(character.color1))
+                        val halfPath = androidx.compose.ui.graphics.Path().apply {
+                            moveTo(size.width, 0f)
+                            lineTo(size.width, size.height)
+                            lineTo(0f, size.height)
+                            close()
+                        }
+                        drawPath(halfPath, parseHexColor(character.color2))
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            character.name,
+                            fontSize = 13.sp,
+                            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isActive) MaterialTheme.colorScheme.primary
+                                    else MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            character.franchise,
+                            fontSize = 10.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (!character.isPreset) {
+                        Text(
+                            "CUSTOM",
+                            fontSize = 9.sp,
+                            color = Color(0xFF7C3AED),
+                            letterSpacing = 1.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Custom character generation
+            Text(
+                "CREATE CUSTOM CHARACTER",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary,
+                letterSpacing = 1.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+
+            OutlinedTextField(
+                value = customName,
+                onValueChange = { customName = it },
+                label = { Text("Character name", fontSize = 12.sp) },
+                placeholder = {
+                    Text(
+                        "Reinhard van Astrea, Makima, Levi Ackerman...",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(
+                onClick = {
+                    if (customName.isNotBlank()) {
+                        onGenerateCharacter(customName)
+                        customName = ""
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = customName.isNotBlank() && !isGenerating,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED))
+            ) {
+                Text(
+                    if (isGenerating) "GENERATING..." else "GENERATE CHARACTER",
+                    letterSpacing = 2.sp,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+            if (isGenerating) {
+                Text(
+                    "Gemini is building the profile + picking colors...",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
         }
     }
 }

@@ -162,6 +162,28 @@ interface KnownLocationDao {
 
 // ─── Database ──────────────────────────────────────────
 
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS character_profiles (
+                name TEXT NOT NULL PRIMARY KEY,
+                franchise TEXT NOT NULL,
+                tagline TEXT NOT NULL,
+                color1 TEXT NOT NULL,
+                color2 TEXT NOT NULL,
+                colorReference TEXT NOT NULL,
+                narrativeAesthetic TEXT NOT NULL,
+                primaryGenres TEXT NOT NULL,
+                transitionStyle TEXT NOT NULL,
+                emotionalArchitecture TEXT NOT NULL,
+                humorPreference TEXT NOT NULL,
+                isPreset INTEGER NOT NULL DEFAULT 0,
+                createdAt INTEGER NOT NULL
+            )
+        """.trimIndent())
+    }
+}
+
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(db: SupportSQLiteDatabase) {
         // Add learning feedback columns to tagged_songs
@@ -209,14 +231,15 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
 }
 
 @Database(
-    entities = [TaggedSong::class, SceneHistoryEntry::class, KnownLocation::class],
-    version = 2,
+    entities = [TaggedSong::class, SceneHistoryEntry::class, KnownLocation::class, CharacterProfile::class],
+    version = 3,
     exportSchema = false
 )
 abstract class SongDatabase : RoomDatabase() {
     abstract fun taggedSongDao(): TaggedSongDao
     abstract fun sceneHistoryDao(): SceneHistoryDao
     abstract fun knownLocationDao(): KnownLocationDao
+    abstract fun characterProfileDao(): CharacterProfileDao
 
     companion object {
         @Volatile
@@ -229,7 +252,7 @@ abstract class SongDatabase : RoomDatabase() {
                     SongDatabase::class.java,
                     "underscore_songs"
                 )
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { INSTANCE = it }
             }

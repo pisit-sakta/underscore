@@ -23,6 +23,8 @@ class UserPreferences(context: Context) {
         private const val KEY_FOOD_ANALOGY_MODE = "food_analogy_mode"
         private const val KEY_CUSTOM_MOOD = "custom_mood"
         private const val KEY_MOOD_EXPIRES_AT = "mood_expires_at"
+        private const val KEY_CHARACTER_MODE = "character_mode_enabled"
+        private const val KEY_ACTIVE_CHARACTER = "active_character_name"
         // Bump this when scopes change to force re-login
         const val CURRENT_SCOPE_VERSION = 2
     }
@@ -120,6 +122,14 @@ class UserPreferences(context: Context) {
         val mood = customMood
         return mood.ifBlank { null }
     }
+
+    var characterModeEnabled: Boolean
+        get() = prefs.getBoolean(KEY_CHARACTER_MODE, false)
+        set(value) { prefs.edit().putBoolean(KEY_CHARACTER_MODE, value).apply() }
+
+    var activeCharacterName: String
+        get() = prefs.getString(KEY_ACTIVE_CHARACTER, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_ACTIVE_CHARACTER, value).apply() }
 
     fun needsSpotifyRelogin(): Boolean = spotifyScopeVersion < CURRENT_SCOPE_VERSION
 

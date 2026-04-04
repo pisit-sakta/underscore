@@ -39,15 +39,24 @@ fun MainScreen(
     currentScene: SceneClassification,
     sensorDebug: SensorDebugInfo,
     versionName: String = "",
+    characterColor1: String? = null,
+    characterColor2: String? = null,
+    characterName: String? = null,
     onStartScoring: () -> Unit,
     onStopScoring: () -> Unit,
     onLogout: () -> Unit,
     onSettings: () -> Unit = {}
 ) {
+    val hasCharacter = characterColor1 != null && characterColor2 != null
+
+    val mainContent: @Composable () -> Unit = {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .then(
+                if (!hasCharacter) Modifier.background(MaterialTheme.colorScheme.background)
+                else Modifier
+            )
             .padding(24.dp)
             .verticalScroll(rememberScrollState())
     ) {
@@ -91,13 +100,28 @@ fun MainScreen(
             }
         }
 
-        if (versionName.isNotEmpty()) {
-            Text(
-                text = versionName,
-                fontSize = 10.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp)
-            )
+        if (versionName.isNotEmpty() || characterName != null) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                if (versionName.isNotEmpty()) {
+                    Text(
+                        text = versionName,
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (characterName != null) {
+                    Text(
+                        text = characterName.uppercase(),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White.copy(alpha = 0.7f),
+                        letterSpacing = 2.sp
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -149,6 +173,19 @@ fun MainScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+    }
+    } // end mainContent
+
+    // Render: diagonal split background when character mode active, else plain
+    if (hasCharacter) {
+        DiagonalSplitBackground(
+            color1 = parseHexColor(characterColor1!!),
+            color2 = parseHexColor(characterColor2!!)
+        ) {
+            mainContent()
+        }
+    } else {
+        mainContent()
     }
 }
 

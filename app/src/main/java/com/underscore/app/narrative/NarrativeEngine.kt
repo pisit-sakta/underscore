@@ -49,7 +49,8 @@ class NarrativeEngine(
         weather: String? = null,
         knownLocation: KnownLocation? = null,
         dramaScale: Int = 5,
-        customMood: String? = null
+        customMood: String? = null,
+        characterProfile: CharacterProfile? = null
     ): SongSelection {
         val allSongs = db.taggedSongDao().getAll()
 
@@ -117,8 +118,12 @@ class NarrativeEngine(
             )
         }
 
-        // Build protagonist context if available
-        val protagonistContext = profileManager?.buildPromptContext() ?: ""
+        // Build protagonist context — character profile takes priority if active
+        val protagonistContext = if (characterProfile != null) {
+            profileManager?.buildCharacterPromptContext(characterProfile) ?: ""
+        } else {
+            profileManager?.buildPromptContext() ?: ""
+        }
 
         val prompt = Prompts.buildScoringPrompt(sceneDescription, trackSummaries, recentUris.take(5), protagonistContext)
         AppLog.d(TAG, "Querying LLM (${llmProvider.name}) with ${candidates.size} candidates for $classification")
