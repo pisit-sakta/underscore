@@ -169,10 +169,16 @@ class MainActivity : ComponentActivity() {
     private fun handleSpotifyRedirect(intent: Intent?) {
         val uri = intent?.data ?: return
         if (uri.scheme == "underscore" && uri.host == "spotify-auth-callback") {
-            val success = spotifyAuth.handleRedirectUri(uri)
-            if (success) {
-                playbackController.connect()
-                recreate()
+            val hasCode = spotifyAuth.handleRedirectUri(uri)
+            if (hasCode) {
+                // PKCE flow: we have the auth code, now exchange it for tokens
+                CoroutineScope(Dispatchers.Main).launch {
+                    val success = spotifyAuth.exchangeCodeForToken()
+                    if (success) {
+                        playbackController.connect()
+                        recreate()
+                    }
+                }
             }
         }
     }
