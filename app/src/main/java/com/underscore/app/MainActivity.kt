@@ -8,7 +8,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,6 +22,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.underscore.app.auth.SpotifyAuth
 import com.underscore.app.data.SongDatabase
@@ -51,6 +54,7 @@ class MainActivity : ComponentActivity() {
     private var sensorDebug by mutableStateOf(SensorDebugInfo())
     private var pendingUpdate by mutableStateOf<UpdateInfo?>(null)
     private var showSettings by mutableStateOf(false)
+    private var showSpotifyHint by mutableStateOf(false)
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -66,6 +70,9 @@ class MainActivity : ComponentActivity() {
 
         requestPermissions()
         checkForUpdate()
+        if (!userPrefs.spotifyHintDismissed && spotifyAuth.isLoggedIn()) {
+            showSpotifyHint = true
+        }
 
         // Handle Spotify auth redirect if we were launched via underscore://spotify-auth-callback
         handleSpotifyRedirect(intent)
@@ -125,6 +132,46 @@ class MainActivity : ComponentActivity() {
                                 }) {
                                     Text("LATER")
                                 }
+                            }
+                        }
+                    )
+                }
+
+                // Spotify hint dialog
+                if (showSpotifyHint) {
+                    var doNotShowAgain by androidx.compose.runtime.remember { mutableStateOf(false) }
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = {},
+                        title = { Text("Before You Start") },
+                        text = {
+                            Column {
+                                Text(
+                                    "Make sure Spotify is open and playing on your phone before starting scoring.\n\n" +
+                                    "Underscore controls playback on whatever device Spotify is active on. " +
+                                    "If no active device is found, it will try to find one automatically."
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                    androidx.compose.material3.Checkbox(
+                                        checked = doNotShowAgain,
+                                        onCheckedChange = { doNotShowAgain = it }
+                                    )
+                                    Text(
+                                        text = "Don't show this again",
+                                        fontSize = 14.sp,
+                                        modifier = Modifier.clickable { doNotShowAgain = !doNotShowAgain }
+                                    )
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            androidx.compose.material3.TextButton(onClick = {
+                                if (doNotShowAgain) {
+                                    userPrefs.spotifyHintDismissed = true
+                                }
+                                showSpotifyHint = false
+                            }) {
+                                Text("OK")
                             }
                         }
                     )

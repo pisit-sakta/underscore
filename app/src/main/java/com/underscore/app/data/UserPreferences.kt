@@ -17,6 +17,7 @@ class UserPreferences(context: Context) {
         private const val KEY_WEATHER_API_KEY = "weather_api_key"
         private const val KEY_PLACES_API_KEY = "places_api_key"
         private const val KEY_BATTERY_SAVER = "battery_saver"
+        private const val KEY_SPOTIFY_HINT_DISMISSED = "spotify_hint_dismissed"
     }
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -60,6 +61,10 @@ class UserPreferences(context: Context) {
     var batterySaver: Boolean
         get() = prefs.getBoolean(KEY_BATTERY_SAVER, false)
         set(value) { prefs.edit().putBoolean(KEY_BATTERY_SAVER, value).apply() }
+
+    var spotifyHintDismissed: Boolean
+        get() = prefs.getBoolean(KEY_SPOTIFY_HINT_DISMISSED, false)
+        set(value) { prefs.edit().putBoolean(KEY_SPOTIFY_HINT_DISMISSED, value).apply() }
 
     fun deleteAllData() {
         prefs.edit().clear().apply()
