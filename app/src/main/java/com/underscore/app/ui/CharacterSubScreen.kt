@@ -40,6 +40,7 @@ fun CharacterSubScreen(
     activeCharacterName: String,
     characters: List<CharacterProfile>,
     isGeneratingCharacter: Boolean,
+    characterError: String? = null,
     onCharacterModeChanged: (Boolean) -> Unit,
     onCharacterSelected: (String) -> Unit,
     onGenerateCharacter: (String) -> Unit,
@@ -217,6 +218,14 @@ fun CharacterSubScreen(
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+            if (characterError != null && !isGeneratingCharacter) {
+                Text(
+                    characterError,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 8.dp)
                 )
             }
         }

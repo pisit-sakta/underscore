@@ -61,8 +61,19 @@ Return ONLY the JSON object, no markdown fences, no explanation.
 
     private val gson = Gson()
 
-    suspend fun generate(characterName: String): CharacterProfile? {
+    data class CharacterResult(
+        val profile: CharacterProfile? = null,
+        val error: String? = null
+    )
+
+    suspend fun generate(characterName: String): CharacterResult {
         AppLog.d(TAG, "Generating profile for: $characterName")
+
+        if (!llmProvider.isConfigured) {
+            val msg = "LLM provider not configured (${llmProvider.name}). Add your API key in Settings."
+            AppLog.e(TAG, msg)
+            return CharacterResult(error = msg)
+        }
 
         val prompt = "Generate a character profile for: $characterName"
 
@@ -75,14 +86,27 @@ Return ONLY the JSON object, no markdown fences, no explanation.
         )
 
         if (response == null) {
-            AppLog.e(TAG, "LLM returned null for character: $characterName")
-            return null
+            val detail = llmProvider.lastError ?: "unknown error"
+            AppLog.e(TAG, "LLM returned null for character '$characterName': $detail")
+            return CharacterResult(error = "LLM call failed: $detail")
         }
 
-        return try {
-            val generated = gson.fromJson(response, GeneratedCharacter::class.java)
+        AppLog.d(TAG, "LLM response for character '$characterName': ${response.take(200)}")
 
-            CharacterProfile(
+        return try {
+            // Strip markdown fences if present
+            var cleaned = response.trim()
+            if (cleaned.startsWith("```")) {
+                val firstNewline = cleaned.indexOf('\n')
+                if (firstNewline > 0) cleaned = cleaned.substring(firstNewline + 1)
+            }
+            if (cleaned.endsWith("```")) {
+                cleaned = cleaned.substring(0, cleaned.length - 3).trim()
+            }
+
+            val generated = gson.fromJson(cleaned, GeneratedCharacter::class.java)
+
+            val profile = CharacterProfile(
                 name = generated.name,
                 franchise = generated.franchise,
                 tagline = generated.tagline,
@@ -96,9 +120,10 @@ Return ONLY the JSON object, no markdown fences, no explanation.
                 humorPreference = generated.humorPreference,
                 isPreset = false
             )
+            CharacterResult(profile = profile)
         } catch (e: Exception) {
             AppLog.e(TAG, "Failed to parse generated character: ${e.message}", e)
-            null
+            CharacterResult(error = "Parse failed: ${e.message}")
         }
     }
 

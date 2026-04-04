@@ -70,6 +70,7 @@ class MainActivity : ComponentActivity() {
     private var showSpotifyHint by mutableStateOf(false)
     private var characterList by mutableStateOf<List<CharacterProfile>>(emptyList())
     private var isGeneratingCharacter by mutableStateOf(false)
+    private var characterError by mutableStateOf<String?>(null)
     private var activeCharacterProfile by mutableStateOf<CharacterProfile?>(null)
     private var isGeneratingFranchise by mutableStateOf(false)
     private var activeFranchiseProfile by mutableStateOf<FranchiseProfile?>(null)
@@ -306,6 +307,7 @@ class MainActivity : ComponentActivity() {
                             activeCharacterName = userPrefs.activeCharacterName,
                             characters = characterList,
                             isGeneratingCharacter = isGeneratingCharacter,
+                            characterError = characterError,
                             onCharacterModeChanged = { enabled ->
                                 userPrefs.characterModeEnabled = enabled
                                 if (!enabled) activeCharacterProfile = null
@@ -326,11 +328,16 @@ class MainActivity : ComponentActivity() {
                             },
                             onGenerateCharacter = { name ->
                                 isGeneratingCharacter = true
-                                CoroutineScope(Dispatchers.IO).launch {
+                                characterError = null
+                                CoroutineScope(Dispatchers.Main).launch {
                                     try {
-                                        val generator = CharacterGenerator(createLlmProvider())
-                                        val profile = generator.generate(name)
-                                        if (profile != null) {
+                                        val result = withContext(Dispatchers.IO) {
+                                            val generator = CharacterGenerator(createLlmProvider())
+                                            generator.generate(name)
+                                        }
+                                        // Back on Main thread
+                                        if (result.profile != null) {
+                                            val profile = result.profile
                                             val validated = ColorHarmonyValidator.validate(profile.color1, profile.color2)
                                             val finalProfile = if (validated.wasModified) {
                                                 com.underscore.app.debug.AppLog.d("MainActivity",
@@ -338,13 +345,21 @@ class MainActivity : ComponentActivity() {
                                                     "${profile.color1}/${profile.color2} -> ${validated.color1}/${validated.color2}")
                                                 profile.copy(color1 = validated.color1, color2 = validated.color2)
                                             } else profile
-                                            db.characterProfileDao().insert(finalProfile)
-                                            characterList = db.characterProfileDao().getAll()
+                                            withContext(Dispatchers.IO) {
+                                                db.characterProfileDao().insert(finalProfile)
+                                            }
+                                            characterList = withContext(Dispatchers.IO) {
+                                                db.characterProfileDao().getAll()
+                                            }
                                             userPrefs.activeCharacterName = finalProfile.name
                                             activeCharacterProfile = finalProfile
+                                            characterError = null
+                                        } else {
+                                            characterError = result.error ?: "Unknown error generating character"
                                         }
                                     } catch (e: Exception) {
                                         com.underscore.app.debug.AppLog.e("MainActivity", "Character generation failed: ${e.message}", e)
+                                        characterError = "Generation failed: ${e.message}"
                                     } finally {
                                         isGeneratingCharacter = false
                                     }
