@@ -59,6 +59,13 @@ android {
             )
             signingConfig = signingConfigs.getByName("release")
         }
+        debug {
+            // Use release signing in CI so updates install seamlessly
+            val keystorePath = System.getenv("KEYSTORE_PATH")
+            if (keystorePath != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+        }
     }
 
     compileOptions {
