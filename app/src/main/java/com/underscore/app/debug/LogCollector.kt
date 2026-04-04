@@ -166,19 +166,16 @@ class LogCollector(private val context: Context) {
     }
 
     private fun collectLogcat(): String {
+        // Primary: in-memory AppLog buffer (always works, even on HONOR/Android 15)
+        val appLogLines = AppLog.getLines()
+        if (appLogLines.isNotEmpty()) {
+            return "(AppLog buffer: ${appLogLines.size} lines)\n" +
+                appLogLines.joinToString("\n")
+        }
+
+        // Fallback: try logcat (may not work on some devices)
         return try {
-            val tags = listOf(
-                "UnderscoreService", "NarrativeEngine", "GeminiApi", "ClaudeApi",
-                "OpenAiCompatibleApi", "SpotifyWebApi", "SpotifyAuth", "SensorAggregator",
-                "LocationProvider", "MotionDetector", "HeartRateProvider", "PlacesProvider",
-                "WeatherProvider", "ContextEngine", "PlaybackController", "TransitionManager",
-                "LibraryAnalyzer", "KnownLocationManager", "ProtagonistProfile", "AppUpdater",
-                "LogCollector", "ZoneScorer"
-            )
-
-            val filterArgs = tags.flatMap { listOf("$it:V") } + listOf("*:S")
-            val cmd = listOf("logcat", "-d", "-t", MAX_LINES.toString()) + filterArgs
-
+            val cmd = listOf("logcat", "-d", "-t", MAX_LINES.toString())
             val process = Runtime.getRuntime().exec(cmd.toTypedArray())
             val reader = BufferedReader(InputStreamReader(process.inputStream))
             val lines = reader.readLines()
@@ -186,19 +183,12 @@ class LogCollector(private val context: Context) {
             process.waitFor()
 
             if (lines.isEmpty()) {
-                val fallback = Runtime.getRuntime().exec(arrayOf("logcat", "-d", "-t", "200"))
-                val fallbackReader = BufferedReader(InputStreamReader(fallback.inputStream))
-                val fallbackLines = fallbackReader.readLines()
-                fallbackReader.close()
-                fallback.waitFor()
-                "(filtered logcat empty, showing last 200 lines unfiltered)\n" +
-                    fallbackLines.joinToString("\n")
+                "(no logs available — AppLog buffer empty, logcat empty)"
             } else {
-                lines.joinToString("\n")
+                "(logcat fallback: ${lines.size} lines)\n" + lines.joinToString("\n")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to collect logcat: ${e.message}", e)
-            "(logcat collection failed: ${e.message})"
+            "(no logs available — AppLog buffer empty, logcat failed: ${e.message})"
         }
     }
 

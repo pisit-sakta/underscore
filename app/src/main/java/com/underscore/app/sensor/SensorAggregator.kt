@@ -1,8 +1,8 @@
 package com.underscore.app.sensor
 
 import android.content.Context
-import android.util.Log
 import com.underscore.app.context.LocationType
+import com.underscore.app.debug.AppLog
 import com.underscore.app.context.MovementIntensity
 import com.underscore.app.context.SceneState
 import com.underscore.app.context.TimeOfDay
@@ -26,7 +26,7 @@ class SensorAggregator(
     private val zoneScorer = ZoneScorer()
 
     init {
-        Log.d(TAG, "Initialized (placesProvider=${if (placesProvider != null) "enabled" else "disabled"})")
+        AppLog.d(TAG, "Initialized (placesProvider=${if (placesProvider != null) "enabled" else "disabled"})")
     }
 
     // Cache places result to avoid blocking the Flow on every emission

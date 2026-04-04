@@ -4,8 +4,8 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Looper
-import android.util.Log
 import androidx.core.content.ContextCompat
+import com.underscore.app.debug.AppLog
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -44,20 +44,20 @@ class LocationProvider(private val context: Context) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
             != PackageManager.PERMISSION_GRANTED
         ) {
-            Log.e(TAG, "Location permission NOT granted — emitting default and waiting")
+            AppLog.e(TAG, "Location permission NOT granted — emitting default and waiting")
             // Don't crash the flow — emit a zero location so the pipeline can still run
             trySend(LocationUpdate(0.0, 0.0, 0f, 0f))
             awaitClose { }
             return@callbackFlow
         }
 
-        Log.d(TAG, "Starting location updates (interval=5s, minDistance=5m)")
+        AppLog.d(TAG, "Starting location updates (interval=5s, minDistance=5m)")
 
         // Emit last known location immediately so combine() doesn't block
         try {
             fusedClient.lastLocation.addOnSuccessListener { location ->
                 if (location != null) {
-                    Log.d(TAG, "Last known location: ${location.latitude}, ${location.longitude}")
+                    AppLog.d(TAG, "Last known location: ${location.latitude}, ${location.longitude}")
                     trySend(
                         LocationUpdate(
                             latitude = location.latitude,
@@ -67,12 +67,12 @@ class LocationProvider(private val context: Context) {
                         )
                     )
                 } else {
-                    Log.d(TAG, "No last known location, emitting default")
+                    AppLog.d(TAG, "No last known location, emitting default")
                     trySend(LocationUpdate(0.0, 0.0, 0f, 0f))
                 }
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to get last location: ${e.message}")
+            AppLog.w(TAG, "Failed to get last location: ${e.message}")
             trySend(LocationUpdate(0.0, 0.0, 0f, 0f))
         }
 
@@ -94,7 +94,7 @@ class LocationProvider(private val context: Context) {
         fusedClient.requestLocationUpdates(locationRequest, callback, Looper.getMainLooper())
 
         awaitClose {
-            Log.d(TAG, "Stopping location updates")
+            AppLog.d(TAG, "Stopping location updates")
             fusedClient.removeLocationUpdates(callback)
         }
     }

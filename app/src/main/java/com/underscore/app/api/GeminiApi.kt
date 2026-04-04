@@ -1,7 +1,7 @@
 package com.underscore.app.api
 
-import android.util.Log
 import com.google.gson.Gson
+import com.underscore.app.debug.AppLog
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -65,7 +65,7 @@ class GeminiApi(private val apiKey: String) : LlmProvider {
         jsonMode: Boolean
     ): String? = withContext(Dispatchers.IO) {
         if (apiKey == DEFAULT_API_KEY) {
-            Log.w(TAG, "generate() called with placeholder API key — skipping")
+            AppLog.w(TAG, "generate() called with placeholder API key — skipping")
             return@withContext null
         }
 
@@ -98,7 +98,7 @@ class GeminiApi(private val apiKey: String) : LlmProvider {
             val body = gson.toJson(request).toRequestBody(jsonMediaType)
 
             val url = "$BASE_URL/models/$MODEL:generateContent?key=$apiKey"
-            Log.d(TAG, "Calling Gemini: $MODEL (prompt ${prompt.length} chars)")
+            AppLog.d(TAG, "Calling Gemini: $MODEL (prompt ${prompt.length} chars)")
 
             val httpRequest = Request.Builder()
                 .url(url)
@@ -108,13 +108,13 @@ class GeminiApi(private val apiKey: String) : LlmProvider {
             val response = client.newCall(httpRequest).execute()
             if (!response.isSuccessful) {
                 val errorBody = response.body?.string()?.take(500)
-                Log.e(TAG, "Gemini API error ${response.code}: $errorBody")
+                AppLog.e(TAG, "Gemini API error ${response.code}: $errorBody")
                 return@withContext null
             }
 
             val responseBody = response.body?.string()
             if (responseBody == null) {
-                Log.e(TAG, "Gemini returned null body")
+                AppLog.e(TAG, "Gemini returned null body")
                 return@withContext null
             }
 
@@ -122,14 +122,14 @@ class GeminiApi(private val apiKey: String) : LlmProvider {
             val text = geminiResponse.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
 
             if (text == null) {
-                Log.w(TAG, "Gemini returned no candidates/content. Response: ${responseBody.take(300)}")
+                AppLog.w(TAG, "Gemini returned no candidates/content. Response: ${responseBody.take(300)}")
             } else {
-                Log.d(TAG, "Gemini response OK (${text.length} chars)")
+                AppLog.d(TAG, "Gemini response OK (${text.length} chars)")
             }
 
             text
         } catch (e: Exception) {
-            Log.e(TAG, "Gemini request failed: ${e.message}", e)
+            AppLog.e(TAG, "Gemini request failed: ${e.message}", e)
             null
         }
     }

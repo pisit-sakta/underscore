@@ -493,7 +493,7 @@ private fun PrivacyPledge() {
             "Location, heart rate, movement — stays on YOUR device.",
             "The LLM receives abstracted scene data only. No GPS. No user ID.",
             "You choose your LLM provider. You control the trust tradeoff.",
-            "Airplane mode works. Turn off network and verify.",
+            "Airplane mode works. Turn off network and verify. Or try intercepting network traffic. We dare you.",
             "One-button data deletion. Settings > Delete All Data. Gone."
         )
         pledgeItems.forEach { item ->

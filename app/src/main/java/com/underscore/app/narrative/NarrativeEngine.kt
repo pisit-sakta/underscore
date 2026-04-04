@@ -1,7 +1,7 @@
 package com.underscore.app.narrative
 
-import android.util.Log
 import com.google.gson.Gson
+import com.underscore.app.debug.AppLog
 import com.google.gson.reflect.TypeToken
 import com.underscore.app.api.LlmProvider
 import com.underscore.app.context.SceneClassification
@@ -51,7 +51,7 @@ class NarrativeEngine(
         val allSongs = db.taggedSongDao().getAll()
 
         if (allSongs.size < 10) {
-            Log.d(TAG, "Library not analyzed yet, using fallback selector")
+            AppLog.d(TAG, "Library not analyzed yet, using fallback selector")
             val track = fallbackSelector.selectTrack(classification)
             return SongSelection(
                 spotifyUri = track.uri,
@@ -67,7 +67,7 @@ class NarrativeEngine(
         if (knownLocation?.leitmotifUri != null) {
             val leitmotifSong = db.taggedSongDao().getByUri(knownLocation.leitmotifUri)
             if (leitmotifSong != null && classification in stationaryClassifications()) {
-                Log.d(TAG, "Playing leitmotif for ${knownLocation.label}: ${leitmotifSong.title}")
+                AppLog.d(TAG, "Playing leitmotif for ${knownLocation.label}: ${leitmotifSong.title}")
                 db.taggedSongDao().recordPlay(leitmotifSong.spotifyUri)
                 return SongSelection(
                     spotifyUri = leitmotifSong.spotifyUri,
@@ -87,7 +87,7 @@ class NarrativeEngine(
         val candidates = preselectCandidates(allSongs, classification, recentUris)
 
         if (candidates.isEmpty()) {
-            Log.w(TAG, "No candidates after filtering, using random")
+            AppLog.w(TAG, "No candidates after filtering, using random")
             val random = allSongs.filter { it.spotifyUri !in recentUris }.randomOrNull()
                 ?: allSongs.random()
             return SongSelection(
@@ -118,7 +118,7 @@ class NarrativeEngine(
         val protagonistContext = profileManager?.buildPromptContext() ?: ""
 
         val prompt = Prompts.buildScoringPrompt(sceneDescription, trackSummaries, recentUris.take(5), protagonistContext)
-        Log.d(TAG, "Querying LLM (${llmProvider.name}) with ${candidates.size} candidates for $classification")
+        AppLog.d(TAG, "Querying LLM (${llmProvider.name}) with ${candidates.size} candidates for $classification")
 
         val response = llmProvider.generate(
             prompt = prompt,
@@ -129,7 +129,7 @@ class NarrativeEngine(
         )
 
         if (response == null) {
-            Log.w(TAG, "LLM returned null — falling back to local selection")
+            AppLog.w(TAG, "LLM returned null — falling back to local selection")
         }
 
         if (response != null) {
@@ -146,7 +146,7 @@ class NarrativeEngine(
                     transitionDurationMs = selection.transition_duration_ms
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to parse LLM selection", e)
+                AppLog.e(TAG, "Failed to parse LLM selection", e)
             }
         }
 

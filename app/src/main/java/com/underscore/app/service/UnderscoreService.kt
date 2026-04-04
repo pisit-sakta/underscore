@@ -4,8 +4,8 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.underscore.app.debug.AppLog
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.underscore.app.MainActivity
@@ -100,7 +100,7 @@ class UnderscoreService : LifecycleService() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d(TAG, "Service created")
+        AppLog.d(TAG, "Service created")
 
         userPrefs = UserPreferences(this)
         db = SongDatabase.getInstance(this)
@@ -177,7 +177,7 @@ class UnderscoreService : LifecycleService() {
             try {
                 analyzeLibraryIfNeeded()
             } catch (e: Exception) {
-                Log.e(TAG, "Library analysis crashed: ${e.message}", e)
+                AppLog.e(TAG, "Library analysis crashed: ${e.message}", e)
                 _libraryStatus.value = "Analysis failed: ${e.message}"
             }
         }
@@ -189,7 +189,7 @@ class UnderscoreService : LifecycleService() {
                     _heartRate.value = hr.bpm
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Heart rate flow failed: ${e.message}", e)
+                AppLog.e(TAG, "Heart rate flow failed: ${e.message}", e)
             }
         }
 
@@ -205,7 +205,7 @@ class UnderscoreService : LifecycleService() {
                     val classification = scene.classification
                     var state = scene.sceneState
 
-                    Log.d(TAG, "Scene: $classification (${scene.minutesInScene}min)")
+                    AppLog.d(TAG, "Scene: $classification (${scene.minutesInScene}min)")
                     _currentScene.value = classification
 
                     // Inject heart rate into scene state
@@ -244,7 +244,7 @@ class UnderscoreService : LifecycleService() {
                         knownLocation = knownLocation
                     )
 
-                    Log.d(TAG, "Selected: ${selection.title} by ${selection.artist}")
+                    AppLog.d(TAG, "Selected: ${selection.title} by ${selection.artist}")
                     _matchReason.value = selection.matchReason
                     currentSongUri = selection.spotifyUri
 
@@ -286,7 +286,7 @@ class UnderscoreService : LifecycleService() {
                     lastClassification = classification
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "SCORING PIPELINE CRASHED: ${e.message}", e)
+                AppLog.e(TAG, "SCORING PIPELINE CRASHED: ${e.message}", e)
                 _matchReason.value = "Pipeline error: ${e.message}"
             }
         }
@@ -301,7 +301,7 @@ class UnderscoreService : LifecycleService() {
             if (historyId != null) {
                 db.sceneHistoryDao().setFeedback(historyId, "skip")
             }
-            Log.d(TAG, "Recorded skip for: $uri")
+            AppLog.d(TAG, "Recorded skip for: $uri")
         }
     }
 
@@ -313,7 +313,7 @@ class UnderscoreService : LifecycleService() {
             if (historyId != null) {
                 db.sceneHistoryDao().setFeedback(historyId, "boost")
             }
-            Log.d(TAG, "Recorded boost for: $uri")
+            AppLog.d(TAG, "Recorded boost for: $uri")
         }
     }
 
@@ -328,7 +328,7 @@ class UnderscoreService : LifecycleService() {
         val spotifyAuth = SpotifyAuth(this)
         val token = spotifyAuth.getAccessToken()
         if (token == null) {
-            Log.w(TAG, "No Spotify access token — library analysis skipped (user not logged in or token expired)")
+            AppLog.w(TAG, "No Spotify access token — library analysis skipped (user not logged in or token expired)")
             _libraryStatus.value = "No Spotify token"
             return
         }
