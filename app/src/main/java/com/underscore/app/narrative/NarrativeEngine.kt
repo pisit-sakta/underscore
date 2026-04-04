@@ -50,8 +50,8 @@ class NarrativeEngine(
     ): SongSelection {
         val allSongs = db.taggedSongDao().getAll()
 
-        if (allSongs.size < 10) {
-            AppLog.d(TAG, "Library not analyzed yet, using fallback selector")
+        if (allSongs.size < 3) {
+            AppLog.d(TAG, "Library not analyzed yet (${allSongs.size} songs), using fallback selector")
             val track = fallbackSelector.selectTrack(classification)
             return SongSelection(
                 spotifyUri = track.uri,

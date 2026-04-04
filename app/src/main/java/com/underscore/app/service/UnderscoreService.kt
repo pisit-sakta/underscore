@@ -69,6 +69,12 @@ class UnderscoreService : LifecycleService() {
         private val _heartRate = MutableStateFlow(0)
         val heartRate: StateFlow<Int> = _heartRate.asStateFlow()
 
+        private val _nowPlayingTitle = MutableStateFlow("")
+        val nowPlayingTitle: StateFlow<String> = _nowPlayingTitle.asStateFlow()
+
+        private val _nowPlayingArtist = MutableStateFlow("")
+        val nowPlayingArtist: StateFlow<String> = _nowPlayingArtist.asStateFlow()
+
         fun start(context: Context) {
             val intent = Intent(context, UnderscoreService::class.java)
             context.startForegroundService(intent)
@@ -248,11 +254,9 @@ class UnderscoreService : LifecycleService() {
                     _matchReason.value = selection.matchReason
                     currentSongUri = selection.spotifyUri
 
-                    // Update nowPlaying immediately so UI shows selection
-                    // (even before Spotify actually starts playing)
-                    playbackController.updateNowPlaying(
-                        selection.title, selection.artist, selection.spotifyUri
-                    )
+                    // Update now playing for UI (static StateFlow — survives instance boundaries)
+                    _nowPlayingTitle.value = selection.title
+                    _nowPlayingArtist.value = selection.artist
 
                     // Log to scene history
                     val historyEntry = SceneHistoryEntry(

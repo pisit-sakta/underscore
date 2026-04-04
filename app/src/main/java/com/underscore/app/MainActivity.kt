@@ -25,6 +25,7 @@ import com.underscore.app.auth.SpotifyAuth
 import com.underscore.app.data.SongDatabase
 import com.underscore.app.data.UserPreferences
 import com.underscore.app.debug.LogCollector
+import com.underscore.app.playback.NowPlaying
 import com.underscore.app.playback.PlaybackController
 import com.underscore.app.service.UnderscoreService
 import com.underscore.app.ui.LoginScreen
@@ -132,7 +133,15 @@ class MainActivity : ComponentActivity() {
                 val isLoggedIn = spotifyAuth.isLoggedIn()
                 val isScoring by UnderscoreService.isRunning.collectAsState()
                 val currentScene by UnderscoreService.currentScene.collectAsState()
-                val nowPlaying by playbackController.nowPlaying.collectAsState()
+                val spotifyNowPlaying by playbackController.nowPlaying.collectAsState()
+                val serviceTitle by UnderscoreService.nowPlayingTitle.collectAsState()
+                val serviceArtist by UnderscoreService.nowPlayingArtist.collectAsState()
+                // Prefer Spotify's actual now playing, fall back to service selection
+                val nowPlaying = if (spotifyNowPlaying.trackName.isNotEmpty()) {
+                    spotifyNowPlaying
+                } else {
+                    NowPlaying(trackName = serviceTitle, artistName = serviceArtist)
+                }
                 val isSpotifyConnected by playbackController.isConnected.collectAsState()
                 val matchReason by UnderscoreService.matchReason.collectAsState()
                 val libraryStatus by UnderscoreService.libraryStatus.collectAsState()
