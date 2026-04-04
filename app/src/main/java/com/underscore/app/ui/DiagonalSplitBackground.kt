@@ -111,4 +111,4 @@ fun textColorForBackground(bg: Color): Color {
 }
 
 private fun linearize(c: Float): Float =
-    if (c <= 0.04045f) c / 12.92f else ((c + 0.055f) / 1.055f).pow(2.4f)
+    if (c <= 0.04045f) c / 12.92f else ((c + 0.055f) / 1.055f).toDouble().pow(2.4).toFloat()
