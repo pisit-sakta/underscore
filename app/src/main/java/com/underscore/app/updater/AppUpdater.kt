@@ -41,10 +41,11 @@ class AppUpdater(private val context: Context) {
 
     companion object {
         private const val TAG = "AppUpdater"
-        private const val REPO = "pisit-sakta/underscore"
+        const val REPO = "pisit-sakta/underscore"
         private const val API_URL = "https://api.github.com/repos/$REPO/releases/latest"
         private const val PREFS_NAME = "underscore_updater"
         private const val KEY_DISMISSED_BUILD = "dismissed_build"
+        const val GITHUB_TOKEN = "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"
     }
 
     private val client = OkHttpClient()
@@ -70,6 +71,7 @@ class AppUpdater(private val context: Context) {
             val request = Request.Builder()
                 .url(API_URL)
                 .addHeader("Accept", "application/vnd.github.v3+json")
+                .addHeader("Authorization", "token $GITHUB_TOKEN")
                 .build()
 
             val response = client.newCall(request).execute()

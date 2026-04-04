@@ -5,6 +5,17 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.util.Log
+import android.widget.Toast
+import com.underscore.app.updater.AppUpdater
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
@@ -16,37 +27,72 @@ class LogCollector(private val context: Context) {
         private const val REPO = "pisit-sakta/underscore"
     }
 
+    private val client = OkHttpClient()
+
     /**
-     * One-tap bug report: collects logs, opens a pre-filled GitHub issue in browser.
-     * User just taps "Submit new issue" — that's it.
+     * One-tap bug report: collects logs, creates a GitHub issue directly via API.
+     * No browser, no login, no manual submit. One tap. Done.
      */
     fun reportBug() {
         val report = collectReport()
-
-        // GitHub new issue URL with pre-filled title and body
-        // URL max length is ~8000 chars for most browsers, so truncate if needed
         val title = "Bug report (Build ${getAppBuildNumber()}, Android ${Build.VERSION.RELEASE})"
-        val body = if (report.length > 6000) {
-            report.take(5900) + "\n\n... (truncated, full report too long for URL)"
-        } else {
-            report
+
+        Toast.makeText(context, "Submitting bug report...", Toast.LENGTH_SHORT).show()
+
+        CoroutineScope(Dispatchers.Main).launch {
+            val success = createGitHubIssue(title, report)
+            if (success) {
+                Toast.makeText(context, "Bug report submitted!", Toast.LENGTH_LONG).show()
+            } else {
+                Toast.makeText(context, "API failed, opening browser...", Toast.LENGTH_SHORT).show()
+                openBrowserFallback(title, report)
+            }
         }
+    }
+
+    private suspend fun createGitHubIssue(title: String, body: String): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val json = JSONObject().apply {
+                put("title", title)
+                put("body", body)
+                put("labels", org.json.JSONArray().apply { put("bug") })
+            }
+
+            val request = Request.Builder()
+                .url("https://api.github.com/repos/$REPO/issues")
+                .addHeader("Accept", "application/vnd.github.v3+json")
+                .addHeader("Authorization", "token ${AppUpdater.GITHUB_TOKEN}")
+                .post(json.toString().toRequestBody("application/json".toMediaType()))
+                .build()
+
+            val response = client.newCall(request).execute()
+            val success = response.isSuccessful
+            Log.d(TAG, "GitHub issue created: ${response.code}")
+            response.close()
+            success
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to create GitHub issue: ${e.message}", e)
+            false
+        }
+    }
+
+    private fun openBrowserFallback(title: String, body: String) {
+        val truncatedBody = if (body.length > 6000) {
+            body.take(5900) + "\n\n... (truncated)"
+        } else body
 
         val url = "https://github.com/$REPO/issues/new" +
                 "?title=${Uri.encode(title)}" +
-                "&body=${Uri.encode(body)}" +
+                "&body=${Uri.encode(truncatedBody)}" +
                 "&labels=bug"
 
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-
         try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
             context.startActivity(intent)
-            Log.d(TAG, "Opened GitHub issue (${report.length} chars)")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to open browser for bug report: ${e.message}", e)
-            // Fallback to share sheet
+            Log.e(TAG, "Browser fallback also failed: ${e.message}", e)
             shareReport()
         }
     }
