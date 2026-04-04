@@ -52,7 +52,7 @@ class PlaybackController(private val context: Context) {
             setRedirectUri.invoke(builder, com.underscore.app.auth.SpotifyAuth.REDIRECT_URI)
 
             val showAuthView = builderClass.getMethod("showAuthView", Boolean::class.java)
-            showAuthView.invoke(builder, false)
+            showAuthView.invoke(builder, true)
 
             val buildMethod = builderClass.getMethod("build")
             val params = buildMethod.invoke(builder)
