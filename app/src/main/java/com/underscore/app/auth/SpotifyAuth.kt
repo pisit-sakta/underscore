@@ -37,6 +37,8 @@ class SpotifyAuth(private val context: Context) {
 
         private val SCOPES = listOf(
             "user-library-read",
+            "user-top-read",
+            "user-read-recently-played",
             "user-modify-playback-state",
             "user-read-playback-state",
             "playlist-read-private",

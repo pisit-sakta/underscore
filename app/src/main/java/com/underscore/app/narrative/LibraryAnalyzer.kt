@@ -39,13 +39,13 @@ class LibraryAnalyzer(
         // Check how many songs we already have tagged
         val existingCount = db.taggedSongDao().count()
 
-        Log.d(TAG, "Fetching saved tracks from Spotify (existing tags: $existingCount)...")
-        val tracks = spotifyApi.getAllSavedTracks()
+        Log.d(TAG, "Fetching all user tracks from Spotify (existing tags: $existingCount)...")
+        val tracks = spotifyApi.getAllUserTracks()
         if (tracks.isEmpty()) {
-            Log.w(TAG, "No saved tracks found")
+            Log.w(TAG, "No tracks found from Spotify")
             return existingCount
         }
-        Log.d(TAG, "Found ${tracks.size} tracks from Spotify")
+        Log.d(TAG, "Found ${tracks.size} unique tracks from Spotify")
 
         // Skip tracks that are already tagged
         val existingUris = db.taggedSongDao().getAllUris().toSet()

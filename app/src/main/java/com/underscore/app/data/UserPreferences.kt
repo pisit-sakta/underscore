@@ -26,7 +26,7 @@ class UserPreferences(context: Context) {
         private const val KEY_CHARACTER_MODE = "character_mode_enabled"
         private const val KEY_ACTIVE_CHARACTER = "active_character_name"
         // Bump this when scopes change to force re-login
-        const val CURRENT_SCOPE_VERSION = 2
+        const val CURRENT_SCOPE_VERSION = 3
     }
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
