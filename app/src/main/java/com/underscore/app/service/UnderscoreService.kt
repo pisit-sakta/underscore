@@ -343,13 +343,14 @@ class UnderscoreService : LifecycleService() {
         state = state.copy(weather = weather?.condition)
         _weather.value = weather?.let { "${it.condition} ${it.temperatureC}°C" } ?: "—"
 
-        // Select song (drama scale read live so changes take effect on next pick)
+        // Select song (drama + mood read live so changes take effect on next pick)
         val selection = narrativeEngine.selectSong(
             sceneState = state,
             classification = classification,
             weather = weather?.let { "${it.condition} (${it.description}, ${it.temperatureC}°C)" },
             knownLocation = knownLocation,
-            dramaScale = userPrefs.dramaScale
+            dramaScale = userPrefs.dramaScale,
+            customMood = userPrefs.getActiveMood()
         )
 
         AppLog.d(TAG, "Selected: ${selection.title} by ${selection.artist}")

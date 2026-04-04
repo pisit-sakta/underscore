@@ -21,6 +21,8 @@ class UserPreferences(context: Context) {
         private const val KEY_SPOTIFY_SCOPE_VERSION = "spotify_scope_version"
         private const val KEY_DRAMA_SCALE = "drama_scale"
         private const val KEY_FOOD_ANALOGY_MODE = "food_analogy_mode"
+        private const val KEY_CUSTOM_MOOD = "custom_mood"
+        private const val KEY_MOOD_EXPIRES_AT = "mood_expires_at"
         // Bump this when scopes change to force re-login
         const val CURRENT_SCOPE_VERSION = 2
     }
@@ -82,6 +84,42 @@ class UserPreferences(context: Context) {
     var foodAnalogyMode: Boolean
         get() = prefs.getBoolean(KEY_FOOD_ANALOGY_MODE, false)
         set(value) { prefs.edit().putBoolean(KEY_FOOD_ANALOGY_MODE, value).apply() }
+
+    /** Free-text mood string. Empty = no mood set. */
+    var customMood: String
+        get() {
+            // Auto-expire: if past expiry time, clear the mood
+            val expiresAt = prefs.getLong(KEY_MOOD_EXPIRES_AT, 0L)
+            if (expiresAt > 0 && System.currentTimeMillis() > expiresAt) {
+                clearMood()
+                return ""
+            }
+            return prefs.getString(KEY_CUSTOM_MOOD, "") ?: ""
+        }
+        set(value) { prefs.edit().putString(KEY_CUSTOM_MOOD, value).apply() }
+
+    /** 0 = no expiry (until manually cleared), otherwise epoch millis. */
+    var moodExpiresAt: Long
+        get() = prefs.getLong(KEY_MOOD_EXPIRES_AT, 0L)
+        set(value) { prefs.edit().putLong(KEY_MOOD_EXPIRES_AT, value).apply() }
+
+    fun setMoodWithDuration(mood: String, durationMs: Long) {
+        customMood = mood
+        moodExpiresAt = if (durationMs <= 0) 0L else System.currentTimeMillis() + durationMs
+    }
+
+    fun clearMood() {
+        prefs.edit()
+            .putString(KEY_CUSTOM_MOOD, "")
+            .putLong(KEY_MOOD_EXPIRES_AT, 0L)
+            .apply()
+    }
+
+    /** Returns the active mood or null if none/expired. */
+    fun getActiveMood(): String? {
+        val mood = customMood
+        return mood.ifBlank { null }
+    }
 
     fun needsSpotifyRelogin(): Boolean = spotifyScopeVersion < CURRENT_SCOPE_VERSION
 

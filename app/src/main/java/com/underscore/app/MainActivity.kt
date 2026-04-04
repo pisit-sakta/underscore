@@ -226,7 +226,9 @@ class MainActivity : ComponentActivity() {
                                 placesKey = userPrefs.placesApiKey,
                                 batterySaver = userPrefs.batterySaver,
                                 dramaScale = userPrefs.dramaScale,
-                                foodAnalogyMode = userPrefs.foodAnalogyMode
+                                foodAnalogyMode = userPrefs.foodAnalogyMode,
+                                customMood = userPrefs.getActiveMood() ?: "",
+                                moodExpiresAt = userPrefs.moodExpiresAt
                             ),
                             onProviderChanged = {
                                 userPrefs.llmProvider = it
@@ -246,6 +248,10 @@ class MainActivity : ComponentActivity() {
                             onBatterySaverChanged = { userPrefs.batterySaver = it },
                             onDramaScaleChanged = { userPrefs.dramaScale = it },
                             onFoodAnalogyChanged = { userPrefs.foodAnalogyMode = it },
+                            onMoodChanged = { mood, durationMs ->
+                                userPrefs.setMoodWithDuration(mood, durationMs)
+                            },
+                            onMoodCleared = { userPrefs.clearMood() },
                             onDeleteAllData = { deleteAllData() },
                             onShareDebugReport = { LogCollector(this@MainActivity).reportBug() },
                             onBack = { showSettings = false }

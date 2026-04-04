@@ -48,7 +48,8 @@ class NarrativeEngine(
         classification: SceneClassification,
         weather: String? = null,
         knownLocation: KnownLocation? = null,
-        dramaScale: Int = 5
+        dramaScale: Int = 5,
+        customMood: String? = null
     ): SongSelection {
         val allSongs = db.taggedSongDao().getAll()
 
@@ -102,7 +103,7 @@ class NarrativeEngine(
             )
         }
 
-        val sceneDescription = buildSceneDescription(sceneState, classification, weather, knownLocation, dramaScale)
+        val sceneDescription = buildSceneDescription(sceneState, classification, weather, knownLocation, dramaScale, customMood)
 
         val trackSummaries = candidates.map { song ->
             TaggedTrackSummary(
@@ -243,7 +244,8 @@ class NarrativeEngine(
         classification: SceneClassification,
         weather: String?,
         knownLocation: KnownLocation? = null,
-        dramaScale: Int = 5
+        dramaScale: Int = 5,
+        customMood: String? = null
     ): String {
         val parts = mutableListOf<String>()
         parts.add("Classification: ${classification.name}")
@@ -253,6 +255,15 @@ class NarrativeEngine(
         val dramaLevel = DramaScale.getLevel(dramaScale)
         parts.add("Drama Scale: ${dramaScale}/10 (${dramaLevel.name})")
         parts.add("Drama instruction: ${dramaLevel.llmInstruction}")
+
+        // Custom mood — the user's self-described emotional state
+        if (!customMood.isNullOrBlank()) {
+            parts.add("User's current mood/vibe: \"$customMood\"")
+            parts.add("Mood instruction: The user has set their vibe to \"$customMood\". " +
+                "Interpret this as an emotional/aesthetic context and let it COLOR your song selection. " +
+                "This is a subjective feeling — use your cultural knowledge to understand what this means " +
+                "and select songs that honor this vibe while still respecting the scene context.")
+        }
 
         // World Layer
         if (state.placeType != null) parts.add("Place type: ${state.placeType}")

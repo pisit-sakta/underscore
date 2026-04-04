@@ -52,7 +52,9 @@ data class SettingsState(
     val placesKey: String = "",
     val batterySaver: Boolean = false,
     val dramaScale: Int = 5,
-    val foodAnalogyMode: Boolean = false
+    val foodAnalogyMode: Boolean = false,
+    val customMood: String = "",
+    val moodExpiresAt: Long = 0L
 )
 
 @Composable
@@ -69,6 +71,8 @@ fun SettingsScreen(
     onBatterySaverChanged: (Boolean) -> Unit,
     onDramaScaleChanged: (Int) -> Unit,
     onFoodAnalogyChanged: (Boolean) -> Unit,
+    onMoodChanged: (String, Long) -> Unit,
+    onMoodCleared: () -> Unit,
     onDeleteAllData: () -> Unit,
     onShareDebugReport: () -> Unit,
     onBack: () -> Unit
@@ -207,6 +211,16 @@ fun SettingsScreen(
             foodMode = state.foodAnalogyMode,
             onDramaScaleChanged = onDramaScaleChanged,
             onFoodModeChanged = onFoodAnalogyChanged
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ── Vibe Check (Custom Mood) ──
+        VibeCheckSection(
+            currentMood = state.customMood,
+            moodExpiresAt = state.moodExpiresAt,
+            onMoodSet = onMoodChanged,
+            onMoodCleared = onMoodCleared
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -483,6 +497,195 @@ private fun SetupGuide(title: String, steps: List<String>, note: String) {
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 lineHeight = 14.sp
+            )
+        }
+    }
+}
+
+private enum class MoodDuration(val label: String, val ms: Long) {
+    UNTIL_CLEARED("Until I change it", 0L),
+    TWO_HOURS("Next 2 hours", 2 * 60 * 60 * 1000L),
+    TODAY("Today", 12 * 60 * 60 * 1000L)  // ~12 hours as approximation
+}
+
+private val MOOD_PRESETS = listOf(
+    "Confident", "Melancholic", "Motivated", "Rainy Day",
+    "Late Night", "Villain Arc", "Main Character", "Vibing"
+)
+
+@Composable
+private fun VibeCheckSection(
+    currentMood: String,
+    moodExpiresAt: Long,
+    onMoodSet: (String, Long) -> Unit,
+    onMoodCleared: () -> Unit
+) {
+    var moodText by remember(currentMood) { mutableStateOf(currentMood) }
+    var selectedDuration by remember { mutableStateOf(MoodDuration.UNTIL_CLEARED) }
+    val hasMood = currentMood.isNotBlank()
+
+    SectionHeader("VIBE CHECK")
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(12.dp)
+    ) {
+        if (hasMood) {
+            // Active mood display
+            Text(
+                text = "Current vibe:",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = currentMood,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)
+            )
+            if (moodExpiresAt > 0) {
+                val remaining = (moodExpiresAt - System.currentTimeMillis()) / 60000
+                if (remaining > 0) {
+                    Text(
+                        text = "Expires in ~${remaining}min",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = {
+                    moodText = ""
+                    onMoodCleared()
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("CLEAR MOOD", fontSize = 12.sp, letterSpacing = 1.sp)
+            }
+        } else {
+            Text(
+                text = "How are you feeling? Type anything.",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 16.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Free text input
+        OutlinedTextField(
+            value = moodText,
+            onValueChange = { moodText = it },
+            label = { Text("Your vibe", fontSize = 12.sp) },
+            placeholder = {
+                Text(
+                    "Ryan Gosling, villain origin story, 2am convenience store...",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Quick presets
+        Text(
+            text = "QUICK VIBES",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.primary,
+            letterSpacing = 1.sp
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+
+        // Two rows of 4 presets
+        for (row in MOOD_PRESETS.chunked(4)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                row.forEach { preset ->
+                    Text(
+                        text = preset,
+                        fontSize = 11.sp,
+                        color = if (moodText == preset) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = if (moodText == preset) FontWeight.Bold else FontWeight.Normal,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(
+                                if (moodText == preset) MaterialTheme.colorScheme.primaryContainer
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            .clickable { moodText = preset }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // Duration selector
+        Text(
+            text = "DURATION",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.primary,
+            letterSpacing = 1.sp
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            MoodDuration.entries.forEach { duration ->
+                Text(
+                    text = duration.label,
+                    fontSize = 11.sp,
+                    color = if (selectedDuration == duration) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = if (selectedDuration == duration) FontWeight.Bold else FontWeight.Normal,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(
+                            if (selectedDuration == duration) MaterialTheme.colorScheme.primaryContainer
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        .clickable { selectedDuration = duration }
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Set mood button
+        Button(
+            onClick = {
+                if (moodText.isNotBlank()) {
+                    onMoodSet(moodText, selectedDuration.ms)
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = moodText.isNotBlank(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF7C3AED))
+        ) {
+            Text(
+                "SET VIBE",
+                letterSpacing = 2.sp,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
             )
         }
     }
