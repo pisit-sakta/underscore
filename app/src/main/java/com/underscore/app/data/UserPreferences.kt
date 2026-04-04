@@ -25,6 +25,8 @@ class UserPreferences(context: Context) {
         private const val KEY_MOOD_EXPIRES_AT = "mood_expires_at"
         private const val KEY_CHARACTER_MODE = "character_mode_enabled"
         private const val KEY_ACTIVE_CHARACTER = "active_character_name"
+        private const val KEY_FRANCHISE_MODE = "franchise_immersion_enabled"
+        private const val KEY_FRANCHISE_JSON = "active_franchise_json"
         // Bump this when scopes change to force re-login
         const val CURRENT_SCOPE_VERSION = 3
     }
@@ -130,6 +132,15 @@ class UserPreferences(context: Context) {
     var activeCharacterName: String
         get() = prefs.getString(KEY_ACTIVE_CHARACTER, "") ?: ""
         set(value) { prefs.edit().putString(KEY_ACTIVE_CHARACTER, value).apply() }
+
+    // ── Franchise Immersion ──
+    var franchiseImmersionEnabled: Boolean
+        get() = prefs.getBoolean(KEY_FRANCHISE_MODE, false)
+        set(value) { prefs.edit().putBoolean(KEY_FRANCHISE_MODE, value).apply() }
+
+    var activeFranchiseJson: String
+        get() = prefs.getString(KEY_FRANCHISE_JSON, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_FRANCHISE_JSON, value).apply() }
 
     fun needsSpotifyRelogin(): Boolean = spotifyScopeVersion < CURRENT_SCOPE_VERSION
 

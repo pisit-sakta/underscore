@@ -11,4 +11,5 @@ sealed class AppScreen {
     data object Character : AppScreen()
     data object Mood : AppScreen()
     data object Drama : AppScreen()
+    data object Franchise : AppScreen()
 }

@@ -101,4 +101,67 @@ Return ONLY the JSON object, no markdown fences, no explanation.
             null
         }
     }
+
+    private val FRANCHISE_PROMPT = """
+You are a franchise profile generator for Underscore, an app that scores real life with music.
+Given a free-text input describing a franchise (and optionally a mood/tone/arc), generate a profile
+for the franchise's overall musical identity.
+
+The input may be just a franchise name ("Spy x Family") or a franchise + mood/tone
+("nostalgic Yakuza", "dark Re:Zero", "JJK Hidden Inventory slice of life").
+
+Parse the input into:
+- name: The franchise name as recognized by fans
+- mood: The mood/tone modifier, or empty string if none specified
+
+Then generate:
+- color1: Hex color for the franchise's PRIMARY visual identity
+- color2: Hex color for the franchise's SECONDARY visual identity
+- color_reference: Why these colors represent this franchise
+- aesthetic: 2-3 sentences describing the franchise's OVERALL musical identity and how the mood
+  modifier (if any) shifts the soundtrack selection. This is NOT about one character — it's about
+  the full musical palette of the franchise.
+- primary_genres: Array of 3-5 music genres that define this franchise's soundtrack
+
+COLOR RULES: Same as character profiles — muted/desaturated tones, one dark + one accent,
+no flag/brand lookalikes. Colors represent the FRANCHISE, not a specific character.
+
+Return ONLY valid JSON, no markdown fences.
+""".trimIndent()
+
+    suspend fun generateFranchise(input: String): com.underscore.app.data.FranchiseProfile? {
+        AppLog.d(TAG, "Generating franchise profile for: $input")
+
+        val prompt = "Generate a franchise profile for: $input"
+
+        val response = llmProvider.generate(
+            prompt = prompt,
+            systemPrompt = FRANCHISE_PROMPT,
+            temperature = 0.7f,
+            maxTokens = 1024,
+            jsonMode = true
+        )
+
+        if (response == null) {
+            AppLog.e(TAG, "LLM returned null for franchise: $input")
+            return null
+        }
+
+        return try {
+            // Strip markdown fences if present
+            var cleaned = response.trim()
+            if (cleaned.startsWith("```")) {
+                val firstNewline = cleaned.indexOf('\n')
+                if (firstNewline > 0) cleaned = cleaned.substring(firstNewline + 1)
+            }
+            if (cleaned.endsWith("```")) {
+                cleaned = cleaned.substring(0, cleaned.length - 3).trim()
+            }
+
+            gson.fromJson(cleaned, com.underscore.app.data.FranchiseProfile::class.java)
+        } catch (e: Exception) {
+            AppLog.e(TAG, "Failed to parse franchise profile: ${e.message}", e)
+            null
+        }
+    }
 }

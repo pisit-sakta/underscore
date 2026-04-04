@@ -25,10 +25,12 @@ import androidx.compose.ui.unit.sp
 fun OptionsMenuScreen(
     providerName: String,
     characterSummary: String,
+    franchiseSummary: String,
     moodSummary: String,
     dramaSummary: String,
     onSettingsClick: () -> Unit,
     onCharacterClick: () -> Unit,
+    onFranchiseClick: () -> Unit,
     onMoodClick: () -> Unit,
     onDramaClick: () -> Unit,
     onBack: () -> Unit
@@ -54,9 +56,18 @@ fun OptionsMenuScreen(
 
         OptionItem(
             title = "Character",
-            description = "Character mode, blend, custom characters",
+            description = "Embody a specific character's emotional architecture",
             subtitle = characterSummary,
             onClick = onCharacterClick
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OptionItem(
+            title = "Franchise",
+            description = "Immerse in a franchise's full soundtrack palette",
+            subtitle = franchiseSummary,
+            onClick = onFranchiseClick
         )
 
         Spacer(modifier = Modifier.height(12.dp))

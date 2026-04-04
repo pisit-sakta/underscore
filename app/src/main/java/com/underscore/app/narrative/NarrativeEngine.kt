@@ -11,6 +11,7 @@ import com.underscore.app.context.SceneState
 import com.underscore.app.data.DramaScale
 import com.underscore.app.data.KnownLocation
 import com.underscore.app.data.CharacterProfile
+import com.underscore.app.data.FranchiseProfile
 import com.underscore.app.data.SongDatabase
 import com.underscore.app.data.TaggedSong
 
@@ -63,6 +64,7 @@ class NarrativeEngine(
         dramaScale: Int = 5,
         customMood: String? = null,
         characterProfile: CharacterProfile? = null,
+        franchiseProfile: FranchiseProfile? = null,
         spotifyApi: SpotifyWebApi? = null
     ): SongSelection {
         // ── CHARACTER MODE: LLM picks franchise soundtrack, search Spotify ──
@@ -70,6 +72,13 @@ class NarrativeEngine(
             val result = selectCharacterSong(sceneState, classification, weather, dramaScale, customMood, characterProfile, spotifyApi)
             if (result != null) return result
             AppLog.w(TAG, "Character mode selection failed, falling back to library")
+        }
+
+        // ── FRANCHISE IMMERSION: LLM picks from franchise's full soundtrack ──
+        if (franchiseProfile != null && spotifyApi != null && llmProvider.isConfigured) {
+            val result = selectFranchiseSong(sceneState, classification, weather, dramaScale, customMood, franchiseProfile, spotifyApi)
+            if (result != null) return result
+            AppLog.w(TAG, "Franchise mode selection failed, falling back to library")
         }
 
         // ── PROTAGONIST MODE: pick from user's analyzed library ──
@@ -276,6 +285,90 @@ Return JSON with:
             }
         } catch (e: Exception) {
             AppLog.e(TAG, "Failed to parse character song recommendation", e)
+            null
+        }
+    }
+
+    /**
+     * Franchise immersion mode: LLM picks from the franchise's full soundtrack palette,
+     * unconstrained by any single character's emotional architecture.
+     */
+    private suspend fun selectFranchiseSong(
+        sceneState: SceneState,
+        classification: SceneClassification,
+        weather: String?,
+        dramaScale: Int,
+        customMood: String?,
+        franchiseProfile: FranchiseProfile,
+        spotifyApi: SpotifyWebApi
+    ): SongSelection? {
+        val sceneDescription = buildSceneDescription(sceneState, classification, weather, null, dramaScale, customMood)
+        val moodNote = if (franchiseProfile.mood.isNotBlank())
+            "\nMood modifier: \"${franchiseProfile.mood}\" — lean toward the ${franchiseProfile.mood} side of the franchise's soundtrack."
+        else ""
+
+        val prompt = """
+You are scoring a real person's life with the soundtrack of ${franchiseProfile.name}.
+$moodNote
+
+CURRENT SCENE: $sceneDescription
+
+FRANCHISE AESTHETIC: ${franchiseProfile.aesthetic}
+
+Pick ONE song from the ${franchiseProfile.name} soundtrack (OST, insert songs, openings, endings, or closely related music) that perfectly scores this moment.
+
+IMPORTANT:
+- You may use ANY character's motif from the franchise — pick whichever fits the moment best.
+- Don't constrain to one character. Use the FULL musical palette of the franchise.
+- The song must exist on Spotify.
+
+Return JSON with:
+- title: exact song title as it appears on Spotify
+- artist: exact artist name
+- search_query: optimized Spotify search query
+- match_reason: why this song fits this exact moment (1-2 sentences)
+- transition_type: "normal", "dramatic_silence", or "urgent"
+""".trimIndent()
+
+        AppLog.d(TAG, "Franchise mode: querying LLM for ${franchiseProfile.name} soundtrack pick")
+
+        val response = llmProvider.generate(
+            prompt = prompt,
+            systemPrompt = Prompts.SCENE_SCORER,
+            temperature = 0.7f,
+            maxTokens = 512,
+            jsonMode = true
+        )
+
+        if (response == null) {
+            AppLog.w(TAG, "Franchise mode LLM returned null")
+            return null
+        }
+
+        return try {
+            val cleaned = stripMarkdownFences(response)
+            val recommendation = gson.fromJson(cleaned, CharacterSongRecommendation::class.java)
+            AppLog.d(TAG, "Franchise mode recommends: ${recommendation.title} by ${recommendation.artist}")
+
+            val searchResults = spotifyApi.searchTracks(recommendation.searchQuery, 5)
+            val match = searchResults.firstOrNull()
+
+            if (match != null) {
+                AppLog.d(TAG, "Spotify match found: ${match.name} by ${match.artistName} (${match.uri})")
+                SongSelection(
+                    spotifyUri = match.uri,
+                    title = match.name,
+                    artist = match.artistName,
+                    matchReason = "${franchiseProfile.name}: ${recommendation.matchReason}",
+                    transitionType = recommendation.transitionType,
+                    transitionDurationMs = 3000
+                )
+            } else {
+                AppLog.w(TAG, "No Spotify result for franchise search: ${recommendation.searchQuery}")
+                null
+            }
+        } catch (e: Exception) {
+            AppLog.e(TAG, "Failed to parse franchise song recommendation: ${e.message}", e)
             null
         }
     }

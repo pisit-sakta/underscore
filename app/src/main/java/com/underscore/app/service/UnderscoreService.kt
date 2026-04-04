@@ -359,13 +359,18 @@ class UnderscoreService : LifecycleService() {
             } else null
         } else null
 
-        // Build Spotify API for character mode (franchise soundtrack search)
-        val spotifyApi = if (characterProfile != null) {
+        // Load active franchise profile
+        val franchiseProfile = if (!userPrefs.characterModeEnabled && userPrefs.franchiseImmersionEnabled) {
+            com.underscore.app.data.FranchiseProfile.fromJson(userPrefs.activeFranchiseJson)
+        } else null
+
+        // Build Spotify API for character/franchise mode (soundtrack search)
+        val spotifyApi = if (characterProfile != null || franchiseProfile != null) {
             val token = SpotifyAuth(this).getAccessToken()
             if (token != null) SpotifyWebApi(token) else null
         } else null
 
-        // Select song (drama + mood + character read live so changes take effect on next pick)
+        // Select song (drama + mood + character + franchise read live)
         val selection = narrativeEngine.selectSong(
             sceneState = state,
             classification = classification,
@@ -374,6 +379,7 @@ class UnderscoreService : LifecycleService() {
             dramaScale = userPrefs.dramaScale,
             customMood = userPrefs.getActiveMood(),
             characterProfile = characterProfile,
+            franchiseProfile = franchiseProfile,
             spotifyApi = spotifyApi
         )
 

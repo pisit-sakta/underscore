@@ -27,6 +27,7 @@ import androidx.core.content.ContextCompat
 import com.underscore.app.auth.SpotifyAuth
 import com.underscore.app.data.CharacterProfile
 import com.underscore.app.data.DramaScale
+import com.underscore.app.data.FranchiseProfile
 import com.underscore.app.data.PresetCharacters
 import com.underscore.app.data.SongDatabase
 import com.underscore.app.data.UserPreferences
@@ -35,6 +36,7 @@ import com.underscore.app.ui.AppScreen
 import com.underscore.app.ui.CharacterSubScreen
 import com.underscore.app.ui.ColorHarmonyValidator
 import com.underscore.app.ui.DramaSubScreen
+import com.underscore.app.ui.FranchiseSubScreen
 import com.underscore.app.ui.MoodSubScreen
 import com.underscore.app.ui.OptionsMenuScreen
 import com.underscore.app.ui.SettingsSubScreen
@@ -68,6 +70,8 @@ class MainActivity : ComponentActivity() {
     private var characterList by mutableStateOf<List<CharacterProfile>>(emptyList())
     private var isGeneratingCharacter by mutableStateOf(false)
     private var activeCharacterProfile by mutableStateOf<CharacterProfile?>(null)
+    private var isGeneratingFranchise by mutableStateOf(false)
+    private var activeFranchiseProfile by mutableStateOf<FranchiseProfile?>(null)
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -93,6 +97,10 @@ class MainActivity : ComponentActivity() {
             val activeName = userPrefs.activeCharacterName
             if (activeName.isNotBlank() && userPrefs.characterModeEnabled) {
                 activeCharacterProfile = db.characterProfileDao().getByName(activeName)
+            }
+            // Load active franchise if set
+            if (userPrefs.franchiseImmersionEnabled) {
+                activeFranchiseProfile = FranchiseProfile.fromJson(userPrefs.activeFranchiseJson)
             }
         }
 
@@ -242,11 +250,16 @@ class MainActivity : ComponentActivity() {
                             providerName = userPrefs.llmProvider.displayName,
                             characterSummary = if (userPrefs.characterModeEnabled)
                                 userPrefs.activeCharacterName.ifBlank { "Enabled" } else "Off",
+                            franchiseSummary = if (userPrefs.franchiseImmersionEnabled)
+                                activeFranchiseProfile?.let {
+                                    if (it.mood.isNotBlank()) "${it.name} (${it.mood})" else it.name
+                                } ?: "Enabled" else "Off",
                             moodSummary = userPrefs.getActiveMood()?.ifBlank { null }
                                 ?: "No active vibe",
                             dramaSummary = "${userPrefs.dramaScale} — ${DramaScale.getDisplayName(userPrefs.dramaScale, userPrefs.foodAnalogyMode)}",
                             onSettingsClick = { currentScreen = AppScreen.Settings },
                             onCharacterClick = { currentScreen = AppScreen.Character },
+                            onFranchiseClick = { currentScreen = AppScreen.Franchise },
                             onMoodClick = { currentScreen = AppScreen.Mood },
                             onDramaClick = { currentScreen = AppScreen.Drama },
                             onBack = { currentScreen = AppScreen.Main }
@@ -352,6 +365,54 @@ class MainActivity : ComponentActivity() {
                             onBack = { currentScreen = AppScreen.OptionsMenu }
                         )
                     }
+                    AppScreen.Franchise -> {
+                        FranchiseSubScreen(
+                            franchiseEnabled = userPrefs.franchiseImmersionEnabled,
+                            activeFranchise = activeFranchiseProfile,
+                            isGenerating = isGeneratingFranchise,
+                            onToggle = { enabled ->
+                                userPrefs.franchiseImmersionEnabled = enabled
+                                if (!enabled) activeFranchiseProfile = null
+                            },
+                            onGenerate = { input ->
+                                isGeneratingFranchise = true
+                                CoroutineScope(Dispatchers.IO).launch {
+                                    try {
+                                        val llmProvider = when (userPrefs.llmProvider) {
+                                            com.underscore.app.api.LlmProviderType.GEMINI -> {
+                                                val key = userPrefs.geminiApiKey.ifEmpty { com.underscore.app.api.GeminiApi.DEFAULT_API_KEY }
+                                                com.underscore.app.api.GeminiApi(key)
+                                            }
+                                            com.underscore.app.api.LlmProviderType.CLAUDE -> {
+                                                val key = userPrefs.claudeApiKey.ifEmpty { com.underscore.app.api.ClaudeApi.DEFAULT_API_KEY }
+                                                com.underscore.app.api.ClaudeApi(key)
+                                            }
+                                            else -> {
+                                                val key = userPrefs.geminiApiKey.ifEmpty { com.underscore.app.api.GeminiApi.DEFAULT_API_KEY }
+                                                com.underscore.app.api.GeminiApi(key)
+                                            }
+                                        }
+                                        val generator = CharacterGenerator(llmProvider)
+                                        val profile = generator.generateFranchise(input)
+                                        if (profile != null) {
+                                            val validated = ColorHarmonyValidator.validate(profile.color1, profile.color2)
+                                            val finalProfile = if (validated.wasModified) {
+                                                profile.copy(color1 = validated.color1, color2 = validated.color2)
+                                            } else profile
+                                            userPrefs.activeFranchiseJson = finalProfile.toJson()
+                                            userPrefs.franchiseImmersionEnabled = true
+                                            activeFranchiseProfile = finalProfile
+                                        }
+                                    } catch (e: Exception) {
+                                        com.underscore.app.debug.AppLog.e("MainActivity", "Franchise generation failed: ${e.message}", e)
+                                    } finally {
+                                        isGeneratingFranchise = false
+                                    }
+                                }
+                            },
+                            onBack = { currentScreen = AppScreen.OptionsMenu }
+                        )
+                    }
                     AppScreen.Mood -> {
                         MoodSubScreen(
                             currentMood = userPrefs.getActiveMood() ?: "",
@@ -392,11 +453,29 @@ class MainActivity : ComponentActivity() {
                                 libraryStatus = libraryStatus
                             ),
                             versionName = getVersionName(),
-                            characterColor1 = if (userPrefs.characterModeEnabled) activeCharacterProfile?.color1 else null,
-                            characterColor2 = if (userPrefs.characterModeEnabled) activeCharacterProfile?.color2 else null,
-                            characterName = if (userPrefs.characterModeEnabled) activeCharacterProfile?.name else null,
+                            characterColor1 = when {
+                                userPrefs.characterModeEnabled -> activeCharacterProfile?.color1
+                                userPrefs.franchiseImmersionEnabled -> activeFranchiseProfile?.color1
+                                else -> null
+                            },
+                            characterColor2 = when {
+                                userPrefs.characterModeEnabled -> activeCharacterProfile?.color2
+                                userPrefs.franchiseImmersionEnabled -> activeFranchiseProfile?.color2
+                                else -> null
+                            },
+                            characterName = when {
+                                userPrefs.characterModeEnabled -> activeCharacterProfile?.name
+                                userPrefs.franchiseImmersionEnabled -> activeFranchiseProfile?.let {
+                                    if (it.mood.isNotBlank()) "${it.name} (${it.mood})" else it.name
+                                }
+                                else -> null
+                            },
                             characterTagline = if (userPrefs.characterModeEnabled) activeCharacterProfile?.tagline else null,
-                            characterFranchise = if (userPrefs.characterModeEnabled) activeCharacterProfile?.franchise else null,
+                            characterFranchise = when {
+                                userPrefs.characterModeEnabled -> activeCharacterProfile?.franchise
+                                userPrefs.franchiseImmersionEnabled -> activeFranchiseProfile?.aesthetic?.take(60)
+                                else -> null
+                            },
                             onStartScoring = { startScoring() },
                             onStopScoring = { stopScoring() },
                             onLogout = { logout() },
