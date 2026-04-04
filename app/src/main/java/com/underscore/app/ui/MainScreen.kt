@@ -38,6 +38,7 @@ fun MainScreen(
     nowPlaying: NowPlaying,
     currentScene: SceneClassification,
     sensorDebug: SensorDebugInfo,
+    versionName: String = "",
     onStartScoring: () -> Unit,
     onStopScoring: () -> Unit,
     onLogout: () -> Unit,
@@ -88,6 +89,15 @@ fun MainScreen(
                     letterSpacing = 1.sp
                 )
             }
+        }
+
+        if (versionName.isNotEmpty()) {
+            Text(
+                text = versionName,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
 
         Spacer(modifier = Modifier.height(32.dp))

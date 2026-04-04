@@ -157,6 +157,7 @@ class MainActivity : ComponentActivity() {
                                 matchReason = matchReason,
                                 libraryStatus = libraryStatus
                             ),
+                            versionName = getVersionName(),
                             onStartScoring = { startScoring() },
                             onStopScoring = { stopScoring() },
                             onLogout = { logout() },
@@ -224,6 +225,13 @@ class MainActivity : ComponentActivity() {
         }
         stopScoring()
         recreate()
+    }
+
+    private fun getVersionName(): String {
+        return try {
+            val pInfo = packageManager.getPackageInfo(packageName, 0)
+            pInfo.versionName ?: "unknown"
+        } catch (e: Exception) { "unknown" }
     }
 
     private fun checkForUpdate() {
