@@ -1,6 +1,6 @@
 package com.underscore.app.playback
 
-import android.util.Log
+import com.underscore.app.debug.AppLog
 import com.underscore.app.context.ContextShift
 import kotlinx.coroutines.delay
 
@@ -18,18 +18,18 @@ class TransitionManager(private val playbackController: PlaybackController) {
 
         // Don't transition to the same track
         if (currentTrack == newTrackUri) {
-            Log.d(TAG, "Already playing $newTrackUri — skipping transition")
+            AppLog.d(TAG, "Already playing $newTrackUri — skipping transition")
             return
         }
 
         val isUrgent = shift?.isUrgent ?: false
 
         if (isUrgent) {
-            Log.d(TAG, "Urgent transition -> $newTrackUri")
+            AppLog.d(TAG, "Urgent transition -> $newTrackUri")
             // Quick crossfade: just play immediately (Spotify handles its own crossfade)
             playbackController.playTrack(newTrackUri)
         } else {
-            Log.d(TAG, "Normal transition -> $newTrackUri")
+            AppLog.d(TAG, "Normal transition -> $newTrackUri")
             // For now, just play the new track — Spotify's built-in crossfade handles the rest.
             // In Sprint 2, we can add volume ramping via Web API for smoother control.
             playbackController.playTrack(newTrackUri)
@@ -37,7 +37,7 @@ class TransitionManager(private val playbackController: PlaybackController) {
     }
 
     suspend fun dramaticSilence(newTrackUri: String) {
-        Log.d(TAG, "Dramatic silence before $newTrackUri")
+        AppLog.d(TAG, "Dramatic silence before $newTrackUri")
         playbackController.pause()
         delay(DRAMATIC_SILENCE_MS)
         playbackController.playTrack(newTrackUri)

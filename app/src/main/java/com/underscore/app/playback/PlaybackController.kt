@@ -1,7 +1,7 @@
 package com.underscore.app.playback
 
 import android.content.Context
-import android.util.Log
+import com.underscore.app.debug.AppLog
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,7 +36,7 @@ class PlaybackController(private val context: Context) {
     val nowPlaying: StateFlow<NowPlaying> = _nowPlaying.asStateFlow()
 
     fun connect() {
-        Log.d(TAG, "Connecting to Spotify App Remote...")
+        AppLog.d(TAG, "Connecting to Spotify App Remote...")
         try {
             // Use reflection so the project compiles without the AAR
             val paramsClass = Class.forName("com.spotify.android.appremote.api.ConnectionParams")
@@ -66,12 +66,12 @@ class PlaybackController(private val context: Context) {
                     "onConnected" -> {
                         spotifyRemote = args?.get(0)
                         _isConnected.value = true
-                        Log.d(TAG, "Connected to Spotify App Remote")
+                        AppLog.d(TAG, "Connected to Spotify App Remote")
                         subscribeToPlayerState()
                     }
                     "onFailure" -> {
                         _isConnected.value = false
-                        Log.e(TAG, "Failed to connect: ${args?.get(0)}")
+                        AppLog.e(TAG, "Failed to connect: ${args?.get(0)}")
                     }
                 }
                 null
@@ -81,10 +81,10 @@ class PlaybackController(private val context: Context) {
             connectMethod.invoke(null, context, params, listener)
 
         } catch (e: ClassNotFoundException) {
-            Log.w(TAG, "Spotify App Remote SDK not found. Place the AAR in app/libs/")
+            AppLog.w(TAG, "Spotify App Remote SDK not found. Place the AAR in app/libs/")
             _isConnected.value = false
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to connect to Spotify", e)
+            AppLog.e(TAG, "Failed to connect to Spotify", e)
             _isConnected.value = false
         }
     }
@@ -97,15 +97,24 @@ class PlaybackController(private val context: Context) {
                 disconnectMethod.invoke(null, spotifyRemote)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error disconnecting", e)
+            AppLog.e(TAG, "Error disconnecting", e)
         }
         spotifyRemote = null
         _isConnected.value = false
     }
 
+    fun updateNowPlaying(title: String, artist: String, uri: String) {
+        _nowPlaying.value = NowPlaying(
+            trackName = title,
+            artistName = artist,
+            trackUri = uri,
+            isPaused = false
+        )
+    }
+
     fun playTrack(spotifyUri: String) {
         val remote = spotifyRemote ?: run {
-            Log.w(TAG, "Not connected — can't play $spotifyUri")
+            AppLog.w(TAG, "Not connected — can't play $spotifyUri")
             // Update UI even without connection for testing
             _nowPlaying.value = NowPlaying(
                 trackName = spotifyUri.substringAfterLast(":"),
@@ -117,13 +126,13 @@ class PlaybackController(private val context: Context) {
         }
 
         try {
-            Log.d(TAG, "Playing: $spotifyUri")
+            AppLog.d(TAG, "Playing: $spotifyUri")
             val getPlayerApi = remote.javaClass.getMethod("getPlayerApi")
             val playerApi = getPlayerApi.invoke(remote)
             val playMethod = playerApi.javaClass.getMethod("play", String::class.java)
             playMethod.invoke(playerApi, spotifyUri)
         } catch (e: Exception) {
-            Log.e(TAG, "Error playing track", e)
+            AppLog.e(TAG, "Error playing track", e)
         }
     }
 
@@ -135,7 +144,7 @@ class PlaybackController(private val context: Context) {
             val pauseMethod = playerApi.javaClass.getMethod("pause")
             pauseMethod.invoke(playerApi)
         } catch (e: Exception) {
-            Log.e(TAG, "Error pausing", e)
+            AppLog.e(TAG, "Error pausing", e)
         }
     }
 
@@ -147,7 +156,7 @@ class PlaybackController(private val context: Context) {
             val resumeMethod = playerApi.javaClass.getMethod("resume")
             resumeMethod.invoke(playerApi)
         } catch (e: Exception) {
-            Log.e(TAG, "Error resuming", e)
+            AppLog.e(TAG, "Error resuming", e)
         }
     }
 
@@ -184,7 +193,7 @@ class PlaybackController(private val context: Context) {
                         )
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error reading player state", e)
+                    AppLog.e(TAG, "Error reading player state", e)
                 }
                 null
             }
@@ -193,7 +202,7 @@ class PlaybackController(private val context: Context) {
             setEventCallback.invoke(subscription, callback)
 
         } catch (e: Exception) {
-            Log.e(TAG, "Error subscribing to player state", e)
+            AppLog.e(TAG, "Error subscribing to player state", e)
         }
     }
 }

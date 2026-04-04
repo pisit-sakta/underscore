@@ -248,6 +248,12 @@ class UnderscoreService : LifecycleService() {
                     _matchReason.value = selection.matchReason
                     currentSongUri = selection.spotifyUri
 
+                    // Update nowPlaying immediately so UI shows selection
+                    // (even before Spotify actually starts playing)
+                    playbackController.updateNowPlaying(
+                        selection.title, selection.artist, selection.spotifyUri
+                    )
+
                     // Log to scene history
                     val historyEntry = SceneHistoryEntry(
                         classification = classification.name,
