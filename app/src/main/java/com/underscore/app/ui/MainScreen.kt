@@ -47,6 +47,8 @@ fun MainScreen(
     characterColor1: String? = null,
     characterColor2: String? = null,
     characterName: String? = null,
+    characterTagline: String? = null,
+    characterFranchise: String? = null,
     onStartScoring: () -> Unit,
     onStopScoring: () -> Unit,
     onLogout: () -> Unit,
@@ -123,31 +125,70 @@ fun MainScreen(
                 }
             }
 
-            if (versionName.isNotEmpty() || characterName != null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+            if (versionName.isNotEmpty()) {
+                Text(
+                    text = versionName,
+                    fontSize = 10.sp,
+                    color = headerTextColor.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(if (characterName != null) 20.dp else 32.dp))
+
+            // Character panel — prominent display when character mode is active
+            if (characterName != null && hasCharacter) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.Black.copy(alpha = 0.35f))
+                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(16.dp))
+                        .padding(20.dp)
                 ) {
-                    if (versionName.isNotEmpty()) {
-                        Text(
-                            text = versionName,
-                            fontSize = 10.sp,
-                            color = headerTextColor.copy(alpha = 0.6f)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Color split preview
+                        MiniDiagonalSplit(
+                            color1 = animatedColor1,
+                            color2 = animatedColor2,
+                            modifier = Modifier
+                                .height(40.dp)
+                                .width(40.dp)
+                                .clip(RoundedCornerShape(8.dp))
                         )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                text = characterName.uppercase(),
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White,
+                                letterSpacing = 2.sp
+                            )
+                            if (characterFranchise != null) {
+                                Text(
+                                    text = characterFranchise,
+                                    fontSize = 12.sp,
+                                    color = Color.White.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
                     }
-                    if (characterName != null) {
+                    if (characterTagline != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = characterName.uppercase(),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = headerTextColor.copy(alpha = 0.7f),
-                            letterSpacing = 2.sp
+                            text = "\"${characterTagline}\"",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Light,
+                            color = Color.White.copy(alpha = 0.7f),
+                            letterSpacing = 0.5.sp
                         )
                     }
                 }
+                Spacer(modifier = Modifier.height(20.dp))
             }
-
-            Spacer(modifier = Modifier.height(32.dp))
 
             // Now Playing
             NowPlayingCard(

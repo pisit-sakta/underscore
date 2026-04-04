@@ -385,6 +385,14 @@ class MainActivity : ComponentActivity() {
                                 val blendChar = getBlendAwareCharacter()
                                 blendChar?.name ?: activeCharacterProfile?.name
                             } else null,
+                            characterTagline = if (userPrefs.characterModeEnabled) {
+                                val blendChar = getBlendAwareCharacter()
+                                blendChar?.tagline ?: activeCharacterProfile?.tagline
+                            } else null,
+                            characterFranchise = if (userPrefs.characterModeEnabled) {
+                                val blendChar = getBlendAwareCharacter()
+                                blendChar?.franchise ?: activeCharacterProfile?.franchise
+                            } else null,
                             onStartScoring = { startScoring() },
                             onStopScoring = { stopScoring() },
                             onLogout = { logout() },
