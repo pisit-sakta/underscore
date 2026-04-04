@@ -51,7 +51,7 @@ class LocationProvider(private val context: Context) {
             return@callbackFlow
         }
 
-        AppLog.d(TAG, "Starting location updates (interval=5s, minDistance=5m)")
+        AppLog.d(TAG, "Starting location updates (interval=5s, no minDistance)")
 
         // Emit last known location immediately so combine() doesn't block
         try {

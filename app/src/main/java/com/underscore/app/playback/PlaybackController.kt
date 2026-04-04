@@ -77,7 +77,7 @@ class PlaybackController(private val context: Context) {
                 null
             }
 
-            val connectMethod = remoteClass.getMethod("connect", Context::class.java, paramsClass, connectorClass)
+            val connectMethod = remoteClass.getMethod("connect", Context::class.java, paramsClass, listenerClass)
             connectMethod.invoke(null, context, params, listener)
 
         } catch (e: ClassNotFoundException) {
