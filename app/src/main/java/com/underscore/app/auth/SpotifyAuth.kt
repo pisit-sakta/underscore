@@ -5,11 +5,9 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import androidx.browser.customtabs.CustomTabsIntent
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
-import com.spotify.sdk.android.auth.AuthorizationClient
-import com.spotify.sdk.android.auth.AuthorizationRequest
-import com.spotify.sdk.android.auth.AuthorizationResponse
 
 class SpotifyAuth(private val context: Context) {
 
@@ -23,7 +21,9 @@ class SpotifyAuth(private val context: Context) {
         private const val KEY_TOKEN_EXPIRY = "token_expiry"
         private const val TAG = "SpotifyAuth"
 
-        private val SCOPES = arrayOf(
+        private const val AUTH_URL = "https://accounts.spotify.com/authorize"
+
+        private val SCOPES = listOf(
             "app-remote-control",
             "user-library-read",
             "playlist-read-private",
@@ -47,7 +47,7 @@ class SpotifyAuth(private val context: Context) {
         val token = prefs.getString(KEY_ACCESS_TOKEN, null)
         val expiry = prefs.getLong(KEY_TOKEN_EXPIRY, 0)
         val loggedIn = token != null && System.currentTimeMillis() < expiry
-        Log.d(TAG, "isLoggedIn=$loggedIn (token=${token != null}, expiry=$expiry, now=${System.currentTimeMillis()})")
+        Log.d(TAG, "isLoggedIn=$loggedIn (hasToken=${token != null}, expired=${System.currentTimeMillis() >= expiry})")
         return loggedIn
     }
 
@@ -57,38 +57,35 @@ class SpotifyAuth(private val context: Context) {
     }
 
     /**
-     * Start Spotify auth using browser (Chrome Custom Tab).
-     * Works whether or not the Spotify app is installed.
-     * The redirect comes back via intent filter on MainActivity.
+     * Start Spotify auth via browser using implicit grant flow.
+     * Builds the auth URL manually (Spotify SDK's openLoginInBrowser
+     * was forcing response_type=code which requires a server).
      */
     fun startAuth(activity: Activity) {
-        Log.d(TAG, "Starting Spotify auth (browser flow)...")
+        Log.d(TAG, "Starting Spotify auth (implicit grant, browser)...")
 
-        val request = AuthorizationRequest.Builder(
-            CLIENT_ID,
-            AuthorizationResponse.Type.TOKEN,
-            REDIRECT_URI
-        )
-            .setScopes(SCOPES)
-            .setShowDialog(false)
+        val scopeString = SCOPES.joinToString(" ")
+        val authUri = Uri.parse(AUTH_URL).buildUpon()
+            .appendQueryParameter("client_id", CLIENT_ID)
+            .appendQueryParameter("response_type", "token")
+            .appendQueryParameter("redirect_uri", REDIRECT_URI)
+            .appendQueryParameter("scope", scopeString)
+            .appendQueryParameter("show_dialog", "true")
             .build()
 
-        // Use browser-based auth — more reliable than openLoginActivity
-        // which silently fails when Spotify app isn't installed
-        val authUri = request.toUri()
         Log.d(TAG, "Auth URI: $authUri")
 
         try {
-            // Try openLoginInBrowser first (Chrome Custom Tab)
-            AuthorizationClient.openLoginInBrowser(activity, request)
-            Log.d(TAG, "Opened auth in browser")
+            // Try Chrome Custom Tab first (nicer UX, stays in-app)
+            val customTabsIntent = CustomTabsIntent.Builder().build()
+            customTabsIntent.launchUrl(activity, authUri)
+            Log.d(TAG, "Opened auth in Chrome Custom Tab")
         } catch (e: Exception) {
-            Log.e(TAG, "openLoginInBrowser failed, falling back to raw intent: ${e.message}", e)
-            // Fallback: open raw URI in any browser
+            Log.w(TAG, "Chrome Custom Tab failed, falling back to browser: ${e.message}")
             try {
                 val browserIntent = Intent(Intent.ACTION_VIEW, authUri)
                 activity.startActivity(browserIntent)
-                Log.d(TAG, "Opened auth via raw browser intent")
+                Log.d(TAG, "Opened auth in browser")
             } catch (e2: Exception) {
                 Log.e(TAG, "All auth methods failed: ${e2.message}", e2)
             }
@@ -97,26 +94,19 @@ class SpotifyAuth(private val context: Context) {
 
     /**
      * Handle the redirect URI coming back from browser auth.
-     * Called from MainActivity.onNewIntent() when the browser redirects
-     * to underscore://spotify-auth-callback#access_token=...
+     * Format: underscore://spotify-auth-callback#access_token=XXX&token_type=Bearer&expires_in=3600
      */
     fun handleRedirectUri(uri: Uri): Boolean {
         Log.d(TAG, "Handling redirect URI: $uri")
 
-        // The token is in the fragment (after #), not query params
-        // Format: underscore://spotify-auth-callback#access_token=XXX&token_type=Bearer&expires_in=3600
         val fragment = uri.fragment
         if (fragment == null) {
-            Log.e(TAG, "Redirect URI has no fragment — auth failed or was cancelled")
-            // Check for error in query params
+            Log.e(TAG, "Redirect URI has no fragment")
             val error = uri.getQueryParameter("error")
-            if (error != null) {
-                Log.e(TAG, "Auth error: $error")
-            }
+            if (error != null) Log.e(TAG, "Auth error: $error")
             return false
         }
 
-        // Parse fragment as query params
         val params = fragment.split("&").associate {
             val parts = it.split("=", limit = 2)
             parts[0] to (parts.getOrNull(1) ?: "")
@@ -127,39 +117,17 @@ class SpotifyAuth(private val context: Context) {
 
         if (accessToken != null && expiresIn != null) {
             saveToken(accessToken, expiresIn)
-            Log.d(TAG, "Auth success via redirect! Token expires in ${expiresIn}s")
+            Log.d(TAG, "Auth success! Token expires in ${expiresIn}s")
             return true
         }
 
         val error = params["error"]
-        Log.e(TAG, "Auth failed — token=$accessToken, expiresIn=$expiresIn, error=$error")
+        Log.e(TAG, "Auth failed — token=${accessToken != null}, expiresIn=$expiresIn, error=$error")
         return false
     }
 
-    /**
-     * Handle auth response from openLoginActivity (legacy, kept as fallback).
-     */
-    fun handleAuthResponse(resultCode: Int, data: Intent?): Boolean {
-        val response = AuthorizationClient.getResponse(resultCode, data)
-        return when (response.type) {
-            AuthorizationResponse.Type.TOKEN -> {
-                saveToken(response.accessToken, response.expiresIn)
-                Log.d(TAG, "Auth success via onActivityResult, token expires in ${response.expiresIn}s")
-                true
-            }
-            AuthorizationResponse.Type.ERROR -> {
-                Log.e(TAG, "Auth error: ${response.error}")
-                false
-            }
-            else -> {
-                Log.w(TAG, "Auth cancelled or unknown response: ${response.type}")
-                false
-            }
-        }
-    }
-
     fun logout() {
-        Log.d(TAG, "Logging out — clearing tokens")
+        Log.d(TAG, "Logging out")
         prefs.edit()
             .remove(KEY_ACCESS_TOKEN)
             .remove(KEY_TOKEN_EXPIRY)
