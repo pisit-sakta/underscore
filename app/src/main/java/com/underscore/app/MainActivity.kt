@@ -54,6 +54,7 @@ import com.underscore.app.updater.DownloadState
 import com.underscore.app.updater.UpdateInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -72,6 +73,7 @@ class MainActivity : ComponentActivity() {
     private var activeCharacterProfile by mutableStateOf<CharacterProfile?>(null)
     private var isGeneratingFranchise by mutableStateOf(false)
     private var activeFranchiseProfile by mutableStateOf<FranchiseProfile?>(null)
+    private var franchiseError by mutableStateOf<String?>(null)
 
     private val locationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -370,41 +372,52 @@ class MainActivity : ComponentActivity() {
                             franchiseEnabled = userPrefs.franchiseImmersionEnabled,
                             activeFranchise = activeFranchiseProfile,
                             isGenerating = isGeneratingFranchise,
+                            errorMessage = franchiseError,
                             onToggle = { enabled ->
                                 userPrefs.franchiseImmersionEnabled = enabled
                                 if (!enabled) activeFranchiseProfile = null
                             },
                             onGenerate = { input ->
                                 isGeneratingFranchise = true
-                                CoroutineScope(Dispatchers.IO).launch {
+                                franchiseError = null
+                                CoroutineScope(Dispatchers.Main).launch {
                                     try {
-                                        val llmProvider = when (userPrefs.llmProvider) {
-                                            com.underscore.app.api.LlmProviderType.GEMINI -> {
-                                                val key = userPrefs.geminiApiKey.ifEmpty { com.underscore.app.api.GeminiApi.DEFAULT_API_KEY }
-                                                com.underscore.app.api.GeminiApi(key)
+                                        val profile = withContext(Dispatchers.IO) {
+                                            val llmProvider = when (userPrefs.llmProvider) {
+                                                com.underscore.app.api.LlmProviderType.GEMINI -> {
+                                                    val key = userPrefs.geminiApiKey.ifEmpty { com.underscore.app.api.GeminiApi.DEFAULT_API_KEY }
+                                                    com.underscore.app.api.GeminiApi(key)
+                                                }
+                                                com.underscore.app.api.LlmProviderType.CLAUDE -> {
+                                                    val key = userPrefs.claudeApiKey.ifEmpty { com.underscore.app.api.ClaudeApi.DEFAULT_API_KEY }
+                                                    com.underscore.app.api.ClaudeApi(key)
+                                                }
+                                                else -> {
+                                                    val key = userPrefs.geminiApiKey.ifEmpty { com.underscore.app.api.GeminiApi.DEFAULT_API_KEY }
+                                                    com.underscore.app.api.GeminiApi(key)
+                                                }
                                             }
-                                            com.underscore.app.api.LlmProviderType.CLAUDE -> {
-                                                val key = userPrefs.claudeApiKey.ifEmpty { com.underscore.app.api.ClaudeApi.DEFAULT_API_KEY }
-                                                com.underscore.app.api.ClaudeApi(key)
-                                            }
-                                            else -> {
-                                                val key = userPrefs.geminiApiKey.ifEmpty { com.underscore.app.api.GeminiApi.DEFAULT_API_KEY }
-                                                com.underscore.app.api.GeminiApi(key)
-                                            }
+                                            val generator = CharacterGenerator(llmProvider)
+                                            generator.generateFranchise(input)
                                         }
-                                        val generator = CharacterGenerator(llmProvider)
-                                        val profile = generator.generateFranchise(input)
+                                        // Back on Main thread — safe to update Compose state
                                         if (profile != null) {
                                             val validated = ColorHarmonyValidator.validate(profile.color1, profile.color2)
                                             val finalProfile = if (validated.wasModified) {
+                                                com.underscore.app.debug.AppLog.d("MainActivity",
+                                                    "Franchise color harmony corrected: ${profile.color1}/${profile.color2} -> ${validated.color1}/${validated.color2}")
                                                 profile.copy(color1 = validated.color1, color2 = validated.color2)
                                             } else profile
                                             userPrefs.activeFranchiseJson = finalProfile.toJson()
                                             userPrefs.franchiseImmersionEnabled = true
                                             activeFranchiseProfile = finalProfile
+                                            franchiseError = null
+                                        } else {
+                                            franchiseError = "Failed to generate franchise profile. Check your LLM provider settings."
                                         }
                                     } catch (e: Exception) {
                                         com.underscore.app.debug.AppLog.e("MainActivity", "Franchise generation failed: ${e.message}", e)
+                                        franchiseError = "Generation failed: ${e.message}"
                                     } finally {
                                         isGeneratingFranchise = false
                                     }

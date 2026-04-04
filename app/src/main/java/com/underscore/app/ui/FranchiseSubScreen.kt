@@ -38,6 +38,7 @@ fun FranchiseSubScreen(
     franchiseEnabled: Boolean,
     activeFranchise: FranchiseProfile?,
     isGenerating: Boolean,
+    errorMessage: String? = null,
     onToggle: (Boolean) -> Unit,
     onGenerate: (String) -> Unit,
     onBack: () -> Unit
@@ -175,6 +176,14 @@ fun FranchiseSubScreen(
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+            if (errorMessage != null && !isGenerating) {
+                Text(
+                    errorMessage,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 8.dp)
                 )
             }
         }
