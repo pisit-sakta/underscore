@@ -8,10 +8,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.underscore.app.auth.SpotifyAuth
 import com.underscore.app.data.SongDatabase
@@ -62,33 +64,71 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             UnderscoreTheme {
+                val dlProgress by appUpdater.downloadProgress.collectAsState()
+
                 // Update dialog
                 pendingUpdate?.let { update ->
                     androidx.compose.material3.AlertDialog(
                         onDismissRequest = {
-                            appUpdater.dismissUpdate(update.buildNumber)
-                            pendingUpdate = null
+                            if (dlProgress.state != com.underscore.app.updater.DownloadState.DOWNLOADING) {
+                                appUpdater.dismissUpdate(update.buildNumber)
+                                pendingUpdate = null
+                            }
                         },
                         title = { androidx.compose.material3.Text("Update Available") },
                         text = {
-                            androidx.compose.material3.Text(
-                                "${update.releaseName}\n\nA new version is ready. Update now?"
-                            )
+                            androidx.compose.foundation.layout.Column {
+                                when (dlProgress.state) {
+                                    com.underscore.app.updater.DownloadState.IDLE -> {
+                                        androidx.compose.material3.Text(
+                                            "${update.releaseName}\n\nA new version is ready. Update now?"
+                                        )
+                                    }
+                                    com.underscore.app.updater.DownloadState.DOWNLOADING -> {
+                                        androidx.compose.material3.Text(
+                                            "Downloading... ${dlProgress.percent}%"
+                                        )
+                                        androidx.compose.foundation.layout.Spacer(
+                                            modifier = androidx.compose.ui.Modifier.height(8.dp)
+                                        )
+                                        androidx.compose.material3.LinearProgressIndicator(
+                                            progress = { dlProgress.percent / 100f },
+                                            modifier = androidx.compose.ui.Modifier.fillMaxWidth()
+                                        )
+                                    }
+                                    com.underscore.app.updater.DownloadState.INSTALLING -> {
+                                        androidx.compose.material3.Text("Installing...")
+                                    }
+                                    com.underscore.app.updater.DownloadState.FAILED -> {
+                                        androidx.compose.material3.Text(
+                                            "Download failed: ${dlProgress.error ?: "Unknown error"}\n\nTry again?"
+                                        )
+                                    }
+                                }
+                            }
                         },
                         confirmButton = {
-                            androidx.compose.material3.TextButton(onClick = {
-                                appUpdater.downloadAndInstall(update)
-                                pendingUpdate = null
-                            }) {
-                                androidx.compose.material3.Text("UPDATE")
+                            if (dlProgress.state == com.underscore.app.updater.DownloadState.IDLE ||
+                                dlProgress.state == com.underscore.app.updater.DownloadState.FAILED) {
+                                androidx.compose.material3.TextButton(onClick = {
+                                    CoroutineScope(Dispatchers.Main).launch {
+                                        appUpdater.downloadAndInstall(update)
+                                    }
+                                }) {
+                                    androidx.compose.material3.Text(
+                                        if (dlProgress.state == com.underscore.app.updater.DownloadState.FAILED) "RETRY" else "UPDATE"
+                                    )
+                                }
                             }
                         },
                         dismissButton = {
-                            androidx.compose.material3.TextButton(onClick = {
-                                appUpdater.dismissUpdate(update.buildNumber)
-                                pendingUpdate = null
-                            }) {
-                                androidx.compose.material3.Text("LATER")
+                            if (dlProgress.state != com.underscore.app.updater.DownloadState.DOWNLOADING) {
+                                androidx.compose.material3.TextButton(onClick = {
+                                    appUpdater.dismissUpdate(update.buildNumber)
+                                    pendingUpdate = null
+                                }) {
+                                    androidx.compose.material3.Text("LATER")
+                                }
                             }
                         }
                     )

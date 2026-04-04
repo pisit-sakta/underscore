@@ -1,10 +1,7 @@
 package com.underscore.app.updater
 
-import android.app.DownloadManager
-import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -13,10 +10,14 @@ import androidx.core.content.FileProvider
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.util.concurrent.TimeUnit
 
 data class GitHubRelease(
     @SerializedName("tag_name") val tagName: String,
@@ -37,6 +38,19 @@ data class UpdateInfo(
     val fileSize: Long
 )
 
+data class DownloadProgress(
+    val state: DownloadState,
+    val bytesDownloaded: Long = 0,
+    val totalBytes: Long = 0,
+    val error: String? = null
+) {
+    val percent: Int get() = if (totalBytes > 0) ((bytesDownloaded * 100) / totalBytes).toInt() else 0
+}
+
+enum class DownloadState {
+    IDLE, DOWNLOADING, INSTALLING, FAILED
+}
+
 class AppUpdater(private val context: Context) {
 
     companion object {
@@ -48,9 +62,15 @@ class AppUpdater(private val context: Context) {
         const val GITHUB_TOKEN = "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"
     }
 
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(5, TimeUnit.MINUTES)
+        .build()
     private val gson = Gson()
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    private val _downloadProgress = MutableStateFlow(DownloadProgress(DownloadState.IDLE))
+    val downloadProgress: StateFlow<DownloadProgress> = _downloadProgress.asStateFlow()
 
     fun getCurrentBuildNumber(): Int {
         return try {
@@ -123,39 +143,72 @@ class AppUpdater(private val context: Context) {
         prefs.edit().putInt(KEY_DISMISSED_BUILD, buildNumber).apply()
     }
 
-    fun downloadAndInstall(update: UpdateInfo) {
-        val downloadManager = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+    /**
+     * Download APK with auth token and progress tracking, then trigger install.
+     * Uses OkHttp instead of DownloadManager because private repo assets
+     * need the Authorization header (DownloadManager can't do that).
+     */
+    suspend fun downloadAndInstall(update: UpdateInfo) = withContext(Dispatchers.IO) {
         val fileName = "underscore-${update.buildNumber}.apk"
 
-        // Clean old downloads
-        val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
-        dir?.listFiles()?.filter { it.name.startsWith("underscore-") && it.name.endsWith(".apk") }
-            ?.forEach { it.delete() }
+        try {
+            _downloadProgress.value = DownloadProgress(DownloadState.DOWNLOADING, 0, update.fileSize)
 
-        val request = DownloadManager.Request(Uri.parse(update.downloadUrl))
-            .setTitle("Underscore Update")
-            .setDescription("Build #${update.buildNumber}")
-            .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, fileName)
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
+            // Clean old downloads
+            val dir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            dir?.listFiles()?.filter { it.name.startsWith("underscore-") && it.name.endsWith(".apk") }
+                ?.forEach { it.delete() }
 
-        val downloadId = downloadManager.enqueue(request)
+            val file = File(dir, fileName)
 
-        // Listen for download completion
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(ctx: Context, intent: Intent) {
-                val id = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1)
-                if (id == downloadId) {
-                    ctx.unregisterReceiver(this)
-                    installApk(fileName)
+            // Download with auth header
+            val request = Request.Builder()
+                .url(update.downloadUrl)
+                .addHeader("Authorization", "token $GITHUB_TOKEN")
+                .addHeader("Accept", "application/octet-stream")
+                .build()
+
+            val response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                val error = "Download failed: HTTP ${response.code}"
+                Log.e(TAG, error)
+                _downloadProgress.value = DownloadProgress(DownloadState.FAILED, error = error)
+                return@withContext
+            }
+
+            val body = response.body ?: run {
+                _downloadProgress.value = DownloadProgress(DownloadState.FAILED, error = "Empty response")
+                return@withContext
+            }
+
+            val totalBytes = body.contentLength().let { if (it > 0) it else update.fileSize }
+            var bytesDownloaded = 0L
+
+            file.outputStream().use { output ->
+                body.byteStream().use { input ->
+                    val buffer = ByteArray(8192)
+                    var read: Int
+                    while (input.read(buffer).also { read = it } != -1) {
+                        output.write(buffer, 0, read)
+                        bytesDownloaded += read
+                        _downloadProgress.value = DownloadProgress(
+                            DownloadState.DOWNLOADING, bytesDownloaded, totalBytes
+                        )
+                    }
                 }
             }
-        }
 
-        context.registerReceiver(
-            receiver,
-            IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
-            Context.RECEIVER_EXPORTED
-        )
+            Log.d(TAG, "Download complete: ${file.length()} bytes")
+            _downloadProgress.value = DownloadProgress(DownloadState.INSTALLING, totalBytes, totalBytes)
+
+            // Trigger install
+            withContext(Dispatchers.Main) {
+                installApk(fileName)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Download failed: ${e.message}", e)
+            _downloadProgress.value = DownloadProgress(DownloadState.FAILED, error = e.message)
+        }
     }
 
     private fun installApk(fileName: String) {
@@ -166,6 +219,7 @@ class AppUpdater(private val context: Context) {
 
         if (!file.exists()) {
             Log.e(TAG, "Downloaded APK not found: $fileName")
+            _downloadProgress.value = DownloadProgress(DownloadState.FAILED, error = "APK file not found")
             return
         }
 
@@ -182,5 +236,6 @@ class AppUpdater(private val context: Context) {
         }
 
         context.startActivity(intent)
+        _downloadProgress.value = DownloadProgress(DownloadState.IDLE)
     }
 }
