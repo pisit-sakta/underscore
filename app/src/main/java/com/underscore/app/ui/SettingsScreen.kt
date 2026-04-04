@@ -123,12 +123,32 @@ fun SettingsScreen(
             LlmProviderType.GEMINI -> {
                 SectionHeader("GEMINI CONFIG")
                 ApiKeyField("Google AI API Key", state.geminiKey, onGeminiKeyChanged)
-                HintText("Get one at aistudio.google.com/app/apikey")
+                SetupGuide(
+                    title = "How to get a Gemini key (free)",
+                    steps = listOf(
+                        "1. Go to aistudio.google.com",
+                        "2. Sign in with your Google account",
+                        "3. Click \"Get API key\" in the top left",
+                        "4. Click \"Create API key\"",
+                        "5. Copy the key and paste it above"
+                    ),
+                    note = "Free tier: 15 requests/minute. More than enough for Underscore."
+                )
             }
             LlmProviderType.CLAUDE -> {
                 SectionHeader("CLAUDE CONFIG")
                 ApiKeyField("Anthropic API Key", state.claudeKey, onClaudeKeyChanged)
-                HintText("Get one at console.anthropic.com")
+                SetupGuide(
+                    title = "How to get a Claude key",
+                    steps = listOf(
+                        "1. Go to console.anthropic.com",
+                        "2. Sign up or sign in",
+                        "3. Go to Settings > API Keys",
+                        "4. Click \"Create Key\"",
+                        "5. Copy the key and paste it above"
+                    ),
+                    note = "Requires adding credits (\$5 minimum). Strong privacy stance."
+                )
             }
             LlmProviderType.OPENAI_COMPATIBLE -> {
                 SectionHeader("CUSTOM ENDPOINT")
@@ -169,17 +189,39 @@ fun SettingsScreen(
 
         // ── Sensor API Keys ──
         SectionHeader("SENSOR API KEYS")
-        HintText("These power the World Layer — location awareness and weather context. Without them, scoring still works but won't know WHERE you are.")
+        HintText("These power the World Layer — location awareness and weather context. Without them, scoring still works but won't know WHERE you are. All keys are free.")
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         ApiKeyField("Google Places Key", state.placesKey, onPlacesKeyChanged)
-        HintText("Powers location/zone scoring. Get one at console.cloud.google.com (Places API). Optional but highly recommended.")
+        SetupGuide(
+            title = "How to get a Google Places key (free)",
+            steps = listOf(
+                "1. Go to console.cloud.google.com",
+                "2. Create a project (any name, e.g. \"Underscore\")",
+                "3. Tap the hamburger menu > APIs & Services > Library",
+                "4. Search \"Places API (New)\" and enable it",
+                "5. Go to APIs & Services > Credentials",
+                "6. Tap \"+ Create Credentials\" > \"API Key\"",
+                "7. Copy the key and paste it above"
+            ),
+            note = "Free tier: \$200/month credit (covers ~40,000 lookups). You won't hit this."
+        )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         ApiKeyField("OpenWeatherMap Key", state.weatherKey, onWeatherKeyChanged)
-        HintText("Adds weather context (rain, temperature). Get one at openweathermap.org/api. Optional.")
+        SetupGuide(
+            title = "How to get an OpenWeatherMap key (free)",
+            steps = listOf(
+                "1. Go to openweathermap.org and sign up",
+                "2. Check your email to verify your account",
+                "3. Go to openweathermap.org/api_keys",
+                "4. Your default key is already there — copy it",
+                "5. Paste it above"
+            ),
+            note = "Free tier: 1,000 calls/day. Underscore uses ~1 per 10 minutes. Optional — adds rain/temperature context."
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -355,6 +397,46 @@ private fun TextInputField(
         singleLine = true,
         textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
     )
+}
+
+@Composable
+private fun SetupGuide(title: String, steps: List<String>, note: String) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .clickable { expanded = !expanded }
+            .padding(10.dp)
+    ) {
+        Text(
+            text = if (expanded) "▼ $title" else "▶ $title",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.primary
+        )
+        if (expanded) {
+            Spacer(modifier = Modifier.height(8.dp))
+            steps.forEach { step ->
+                Text(
+                    text = step,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    lineHeight = 18.sp,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = note,
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 14.sp
+            )
+        }
+    }
 }
 
 @Composable
