@@ -76,6 +76,7 @@ class GeminiApi(private val apiKey: String) : LlmProvider {
         }
 
         val responseBody = response.body?.string() ?: run {
+            lastError = "$model returned empty body"
             AppLog.e(TAG, "Gemini returned null body")
             return null
         }
@@ -84,6 +85,7 @@ class GeminiApi(private val apiKey: String) : LlmProvider {
         val text = geminiResponse.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
 
         if (text == null) {
+            lastError = "$model returned no candidates: ${responseBody.take(150)}"
             AppLog.w(TAG, "Gemini returned no candidates. Response: ${responseBody.take(300)}")
         } else {
             AppLog.d(TAG, "$model response OK (${text.length} chars)")
