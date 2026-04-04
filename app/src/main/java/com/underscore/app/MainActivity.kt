@@ -224,7 +224,9 @@ class MainActivity : ComponentActivity() {
                                 customModel = userPrefs.customModel,
                                 weatherKey = userPrefs.weatherApiKey,
                                 placesKey = userPrefs.placesApiKey,
-                                batterySaver = userPrefs.batterySaver
+                                batterySaver = userPrefs.batterySaver,
+                                dramaScale = userPrefs.dramaScale,
+                                foodAnalogyMode = userPrefs.foodAnalogyMode
                             ),
                             onProviderChanged = {
                                 userPrefs.llmProvider = it
@@ -242,6 +244,8 @@ class MainActivity : ComponentActivity() {
                             onWeatherKeyChanged = { userPrefs.weatherApiKey = it },
                             onPlacesKeyChanged = { userPrefs.placesApiKey = it },
                             onBatterySaverChanged = { userPrefs.batterySaver = it },
+                            onDramaScaleChanged = { userPrefs.dramaScale = it },
+                            onFoodAnalogyChanged = { userPrefs.foodAnalogyMode = it },
                             onDeleteAllData = { deleteAllData() },
                             onShareDebugReport = { LogCollector(this@MainActivity).reportBug() },
                             onBack = { showSettings = false }

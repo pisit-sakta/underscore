@@ -20,6 +20,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,6 +39,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.underscore.app.api.LlmProviderType
+import com.underscore.app.data.DramaScale
 
 data class SettingsState(
     val provider: LlmProviderType = LlmProviderType.GEMINI,
@@ -47,7 +50,9 @@ data class SettingsState(
     val customModel: String = "",
     val weatherKey: String = "",
     val placesKey: String = "",
-    val batterySaver: Boolean = false
+    val batterySaver: Boolean = false,
+    val dramaScale: Int = 5,
+    val foodAnalogyMode: Boolean = false
 )
 
 @Composable
@@ -62,6 +67,8 @@ fun SettingsScreen(
     onWeatherKeyChanged: (String) -> Unit,
     onPlacesKeyChanged: (String) -> Unit,
     onBatterySaverChanged: (Boolean) -> Unit,
+    onDramaScaleChanged: (Int) -> Unit,
+    onFoodAnalogyChanged: (Boolean) -> Unit,
     onDeleteAllData: () -> Unit,
     onShareDebugReport: () -> Unit,
     onBack: () -> Unit
@@ -191,6 +198,16 @@ fun SettingsScreen(
                 HintText("Sent as 'Authorization: Bearer <key>'. Leave empty for local LLMs that don't require auth.")
             }
         }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ── Drama Scale ──
+        DramaScaleSection(
+            dramaScale = state.dramaScale,
+            foodMode = state.foodAnalogyMode,
+            onDramaScaleChanged = onDramaScaleChanged,
+            onFoodModeChanged = onFoodAnalogyChanged
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -468,6 +485,126 @@ private fun SetupGuide(title: String, steps: List<String>, note: String) {
                 lineHeight = 14.sp
             )
         }
+    }
+}
+
+@Composable
+private fun DramaScaleSection(
+    dramaScale: Int,
+    foodMode: Boolean,
+    onDramaScaleChanged: (Int) -> Unit,
+    onFoodModeChanged: (Boolean) -> Unit
+) {
+    var sliderValue by remember(dramaScale) { mutableStateOf(dramaScale.toFloat()) }
+    val currentLevel = DramaScale.getLevel(sliderValue.toInt())
+    var expanded by remember { mutableStateOf(false) }
+
+    SectionHeader("DRAMA SCALE")
+
+    // Current level display
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable { expanded = !expanded }
+            .padding(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = if (foodMode) currentLevel.foodName else currentLevel.name,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "${sliderValue.toInt()} / 10",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Light,
+                color = MaterialTheme.colorScheme.primary,
+                letterSpacing = 1.sp
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = if (foodMode) currentLevel.foodOneLiner else currentLevel.oneLiner,
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            lineHeight = 16.sp
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Slider
+        Slider(
+            value = sliderValue,
+            onValueChange = { sliderValue = it },
+            onValueChangeFinished = { onDramaScaleChanged(sliderValue.toInt()) },
+            valueRange = 1f..10f,
+            steps = 8,
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary
+            )
+        )
+
+        // Food analogy toggle
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Food Analogy Mode",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Switch(checked = foodMode, onCheckedChange = onFoodModeChanged)
+        }
+
+        // Expandable: all levels preview
+        if (expanded) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "ALL LEVELS",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary,
+                letterSpacing = 1.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            DramaScale.levels.forEach { level ->
+                val name = if (foodMode) level.foodName else level.name
+                val desc = if (foodMode) level.foodOneLiner else level.oneLiner
+                val isActive = level.level == sliderValue.toInt()
+                Text(
+                    text = "${level.level}. $name",
+                    fontSize = 12.sp,
+                    fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isActive) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = desc,
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 14.sp,
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
+            }
+        }
+
+        // Expand hint
+        Text(
+            text = if (expanded) "▼ Tap to collapse" else "▶ Tap to see all levels",
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(top = 4.dp)
+        )
     }
 }
 

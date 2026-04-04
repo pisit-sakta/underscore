@@ -19,6 +19,8 @@ class UserPreferences(context: Context) {
         private const val KEY_BATTERY_SAVER = "battery_saver"
         private const val KEY_SPOTIFY_HINT_DISMISSED = "spotify_hint_dismissed"
         private const val KEY_SPOTIFY_SCOPE_VERSION = "spotify_scope_version"
+        private const val KEY_DRAMA_SCALE = "drama_scale"
+        private const val KEY_FOOD_ANALOGY_MODE = "food_analogy_mode"
         // Bump this when scopes change to force re-login
         const val CURRENT_SCOPE_VERSION = 2
     }
@@ -72,6 +74,14 @@ class UserPreferences(context: Context) {
     var spotifyScopeVersion: Int
         get() = prefs.getInt(KEY_SPOTIFY_SCOPE_VERSION, 1)
         set(value) { prefs.edit().putInt(KEY_SPOTIFY_SCOPE_VERSION, value).apply() }
+
+    var dramaScale: Int
+        get() = prefs.getInt(KEY_DRAMA_SCALE, 5)
+        set(value) { prefs.edit().putInt(KEY_DRAMA_SCALE, value.coerceIn(1, 10)).apply() }
+
+    var foodAnalogyMode: Boolean
+        get() = prefs.getBoolean(KEY_FOOD_ANALOGY_MODE, false)
+        set(value) { prefs.edit().putBoolean(KEY_FOOD_ANALOGY_MODE, value).apply() }
 
     fun needsSpotifyRelogin(): Boolean = spotifyScopeVersion < CURRENT_SCOPE_VERSION
 

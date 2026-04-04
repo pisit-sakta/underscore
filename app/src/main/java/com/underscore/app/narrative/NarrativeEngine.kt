@@ -6,6 +6,7 @@ import com.google.gson.reflect.TypeToken
 import com.underscore.app.api.LlmProvider
 import com.underscore.app.context.SceneClassification
 import com.underscore.app.context.SceneState
+import com.underscore.app.data.DramaScale
 import com.underscore.app.data.KnownLocation
 import com.underscore.app.data.SongDatabase
 import com.underscore.app.data.TaggedSong
@@ -46,7 +47,8 @@ class NarrativeEngine(
         sceneState: SceneState,
         classification: SceneClassification,
         weather: String? = null,
-        knownLocation: KnownLocation? = null
+        knownLocation: KnownLocation? = null,
+        dramaScale: Int = 5
     ): SongSelection {
         val allSongs = db.taggedSongDao().getAll()
 
@@ -84,7 +86,7 @@ class NarrativeEngine(
             System.currentTimeMillis() - RECENTLY_PLAYED_WINDOW_MS
         )
 
-        val candidates = preselectCandidates(allSongs, classification, recentUris)
+        val candidates = preselectCandidates(allSongs, classification, recentUris, dramaScale)
 
         if (candidates.isEmpty()) {
             AppLog.w(TAG, "No candidates after filtering, using random")
@@ -100,7 +102,7 @@ class NarrativeEngine(
             )
         }
 
-        val sceneDescription = buildSceneDescription(sceneState, classification, weather, knownLocation)
+        val sceneDescription = buildSceneDescription(sceneState, classification, weather, knownLocation, dramaScale)
 
         val trackSummaries = candidates.map { song ->
             TaggedTrackSummary(
@@ -172,9 +174,14 @@ class NarrativeEngine(
     private fun preselectCandidates(
         allSongs: List<TaggedSong>,
         classification: SceneClassification,
-        recentUris: List<String>
+        recentUris: List<String>,
+        dramaScale: Int = 5
     ): List<TaggedSong> {
         val sceneKeywords = classificationToKeywords(classification)
+        // Drama scale affects energy thresholds:
+        // Low drama (1-3) = prefer calmer tracks even in moderate scenes
+        // High drama (8-10) = allow intense tracks even in calm scenes (ironic-dramatic)
+        val dramaFactor = dramaScale / 10f  // 0.1 to 1.0
 
         val scored = allSongs
             .filter { it.spotifyUri !in recentUris }
@@ -190,16 +197,28 @@ class NarrativeEngine(
                 val energyScore = when (classification) {
                     SceneClassification.ACTIVE -> if (song.energy > 0.7f) 2 else 0
                     SceneClassification.TRANSIT -> if (song.energy in 0.4f..0.8f) 1 else 0
-                    SceneClassification.NIGHT_STATIONARY -> if (song.energy < 0.4f) 2 else 0
-                    SceneClassification.EVENING_STATIONARY -> if (song.energy < 0.5f) 1 else 0
+                    SceneClassification.NIGHT_STATIONARY -> {
+                        // High drama: don't penalize high-energy tracks as hard
+                        if (dramaScale >= 8) 0
+                        else if (song.energy < 0.4f) 2 else 0
+                    }
+                    SceneClassification.EVENING_STATIONARY -> {
+                        if (dramaScale >= 8) 0
+                        else if (song.energy < 0.5f) 1 else 0
+                    }
                     SceneClassification.MORNING_STATIONARY -> if (song.valence > 0.3f) 1 else 0
                     else -> 0
                 }
 
+                // At high drama, give bonus to high-energy tracks in ANY scene
+                val dramaBonus = if (dramaScale >= 8 && song.energy > 0.7f) 1
+                    else if (dramaScale <= 3 && song.energy < 0.4f) 1
+                    else 0
+
                 // Learning loop: boost songs user liked, penalize skipped
                 val feedbackScore = song.boostCount - song.skipCount
 
-                song to (matchScore + energyScore + feedbackScore)
+                song to (matchScore + energyScore + dramaBonus + feedbackScore)
             }
             .sortedByDescending { it.second }
             .take(CANDIDATE_POOL_SIZE)
@@ -223,11 +242,17 @@ class NarrativeEngine(
         state: SceneState,
         classification: SceneClassification,
         weather: String?,
-        knownLocation: KnownLocation? = null
+        knownLocation: KnownLocation? = null,
+        dramaScale: Int = 5
     ): String {
         val parts = mutableListOf<String>()
         parts.add("Classification: ${classification.name}")
         parts.add("Time of day: ${state.timeOfDay.name}")
+
+        // Drama Scale context for LLM
+        val dramaLevel = DramaScale.getLevel(dramaScale)
+        parts.add("Drama Scale: ${dramaScale}/10 (${dramaLevel.name})")
+        parts.add("Drama instruction: ${dramaLevel.llmInstruction}")
 
         // World Layer
         if (state.placeType != null) parts.add("Place type: ${state.placeType}")
