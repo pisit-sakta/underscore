@@ -71,6 +71,9 @@ class OpenAiCompatibleApi(
     }
 
     override val name: String = "Custom ($model)"
+    override val isConfigured: Boolean = baseUrl.isNotBlank() && model.isNotBlank()
+    override var lastError: String? = null
+        private set
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -126,24 +129,31 @@ class OpenAiCompatibleApi(
 
             if (!response.isSuccessful) {
                 val errorBody = response.body?.string()
+                lastError = "API ${response.code}: ${errorBody?.take(100)}"
                 Log.e(TAG, "API error ${response.code}: $errorBody")
                 return@withContext null
             }
 
-            val responseBody = response.body?.string() ?: return@withContext null
+            val responseBody = response.body?.string() ?: run {
+                lastError = "Empty response body"
+                return@withContext null
+            }
             val chatResponse = gson.fromJson(responseBody, ChatCompletionResponse::class.java)
 
             if (chatResponse.error != null) {
+                lastError = "API error: ${chatResponse.error.message}"
                 Log.e(TAG, "API returned error: ${chatResponse.error.message}")
                 return@withContext null
             }
 
             val content = chatResponse.choices?.firstOrNull()?.message?.content
             if (content == null) {
+                lastError = "No content in response"
                 Log.w(TAG, "No content in response")
             }
             content
         } catch (e: Exception) {
+            lastError = "Network error: ${e.message}"
             Log.e(TAG, "Request failed", e)
             null
         }

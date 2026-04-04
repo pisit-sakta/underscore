@@ -50,6 +50,9 @@ class ClaudeApi(private val apiKey: String) : LlmProvider {
     }
 
     override val name: String = "Claude Haiku"
+    override val isConfigured: Boolean = apiKey != DEFAULT_API_KEY && apiKey.isNotBlank()
+    override var lastError: String? = null
+        private set
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -67,10 +70,12 @@ class ClaudeApi(private val apiKey: String) : LlmProvider {
         jsonMode: Boolean
     ): String? = withContext(Dispatchers.IO) {
         if (apiKey == DEFAULT_API_KEY || apiKey.isBlank()) {
+            lastError = "No API key configured"
             Log.w(TAG, "generate() called with placeholder/empty API key — skipping")
             return@withContext null
         }
 
+        lastError = null
         try {
             val messages = listOf(
                 ClaudeMessage(role = "user", content = prompt)
@@ -99,12 +104,14 @@ class ClaudeApi(private val apiKey: String) : LlmProvider {
             val response = client.newCall(httpRequest).execute()
             if (!response.isSuccessful) {
                 val errorBody = response.body?.string()?.take(500)
+                lastError = "Claude ${response.code}: ${errorBody?.take(100)}"
                 Log.e(TAG, "Claude API error ${response.code}: $errorBody")
                 return@withContext null
             }
 
             val responseBody = response.body?.string()
             if (responseBody == null) {
+                lastError = "Claude returned empty response"
                 Log.e(TAG, "Claude returned null body")
                 return@withContext null
             }
@@ -112,6 +119,7 @@ class ClaudeApi(private val apiKey: String) : LlmProvider {
             val claudeResponse = gson.fromJson(responseBody, ClaudeResponse::class.java)
 
             if (claudeResponse.error != null) {
+                lastError = "Claude: ${claudeResponse.error.type} — ${claudeResponse.error.message}"
                 Log.e(TAG, "Claude API error: ${claudeResponse.error.type} — ${claudeResponse.error.message}")
                 return@withContext null
             }
@@ -126,6 +134,7 @@ class ClaudeApi(private val apiKey: String) : LlmProvider {
 
             text
         } catch (e: Exception) {
+            lastError = "Network error: ${e.message}"
             Log.e(TAG, "Claude request failed: ${e.message}", e)
             null
         }

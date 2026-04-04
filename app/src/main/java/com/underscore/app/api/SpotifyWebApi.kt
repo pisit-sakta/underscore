@@ -62,19 +62,19 @@ class SpotifyWebApi(private val accessToken: String) {
         return get("$baseUrl/me/tracks?limit=$limit&offset=$offset", SavedTracksResponse::class.java)
     }
 
-    suspend fun getAllSavedTracks(maxTracks: Int = 500): List<SpotifyTrack> {
+    suspend fun getAllSavedTracks(): List<SpotifyTrack> {
         val tracks = mutableListOf<SpotifyTrack>()
         var offset = 0
         val limit = 50
 
-        while (offset < maxTracks) {
+        while (true) {
             val response = getSavedTracks(limit, offset)
             if (response == null) {
                 Log.w(TAG, "getSavedTracks returned null at offset=$offset, stopping pagination")
                 break
             }
             tracks.addAll(response.items.map { it.track })
-            Log.d(TAG, "Fetched ${tracks.size} tracks so far (total available: ${response.total})")
+            Log.d(TAG, "Fetched ${tracks.size}/${response.total} tracks")
             if (response.next == null) break
             offset += limit
         }

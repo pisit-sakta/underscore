@@ -50,6 +50,9 @@ interface TaggedSongDao {
     @Query("SELECT COUNT(*) FROM tagged_songs")
     suspend fun count(): Int
 
+    @Query("SELECT spotifyUri FROM tagged_songs")
+    suspend fun getAllUris(): List<String>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(songs: List<TaggedSong>)
 

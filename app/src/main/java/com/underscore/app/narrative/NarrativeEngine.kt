@@ -160,11 +160,17 @@ class NarrativeEngine(
 
         val pick = candidates.random()
         db.taggedSongDao().recordPlay(pick.spotifyUri)
+        val errorDetail = llmProvider.lastError
+        val reason = when {
+            !llmProvider.isConfigured -> "Local selection (no API key — set in Settings)"
+            errorDetail != null -> "Local selection ($errorDetail)"
+            else -> "Local selection (LLM returned empty)"
+        }
         return SongSelection(
             spotifyUri = pick.spotifyUri,
             title = pick.title,
             artist = pick.artist,
-            matchReason = "Local selection (LLM unavailable)",
+            matchReason = reason,
             transitionType = "normal",
             transitionDurationMs = 3000
         )
