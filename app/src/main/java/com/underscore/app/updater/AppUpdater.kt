@@ -42,7 +42,7 @@ class AppUpdater(private val context: Context) {
     companion object {
         private const val TAG = "AppUpdater"
         private const val REPO = "pisit-sakta/underscore"
-        private const val API_URL = "https://api.github.com/repos/$REPO/releases/latest"
+        private const val API_URL = "https://api.github.com/repos/$REPO/releases?per_page=1"
         private const val PREFS_NAME = "underscore_updater"
         private const val KEY_DISMISSED_BUILD = "dismissed_build"
     }
@@ -79,7 +79,19 @@ class AppUpdater(private val context: Context) {
             }
 
             val body = response.body?.string() ?: return@withContext null
-            val release = gson.fromJson(body, GitHubRelease::class.java)
+
+            // API returns an array (we fetch ?per_page=1), take the first
+            val releases: List<GitHubRelease> = try {
+                gson.fromJson(body, Array<GitHubRelease>::class.java).toList()
+            } catch (e: Exception) {
+                // Fallback: maybe it's a single object (from /releases/latest)
+                listOf(gson.fromJson(body, GitHubRelease::class.java))
+            }
+            val release = releases.firstOrNull()
+            if (release == null) {
+                Log.w(TAG, "No releases found")
+                return@withContext null
+            }
 
             // Parse build number from tag: "build-42" -> 42
             val remoteBuild = release.tagName
