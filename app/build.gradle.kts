@@ -36,9 +36,6 @@ android {
         targetSdk = 34
         versionCode = gitVersionCode
         versionName = gitVersionName
-
-        manifestPlaceholders["redirectSchemeName"] = "underscore"
-        manifestPlaceholders["redirectHostName"] = "spotify-auth-callback"
     }
 
     buildTypes {
@@ -90,9 +87,6 @@ dependencies {
 
     // Kotlin Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
-
-    // Spotify Auth
-    implementation("com.spotify.android:auth:2.0.1")
 
     // Spotify App Remote SDK — download the AAR from:
     // https://github.com/spotify/android-sdk/releases
