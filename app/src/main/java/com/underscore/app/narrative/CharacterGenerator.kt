@@ -81,7 +81,7 @@ Return ONLY the JSON object, no markdown fences, no explanation.
             prompt = prompt,
             systemPrompt = SYSTEM_PROMPT,
             temperature = 0.7f,
-            maxTokens = 1024,
+            maxTokens = 2048,
             jsonMode = true
         )
 
