@@ -343,9 +343,16 @@ class UnderscoreService : LifecycleService() {
         state = state.copy(weather = weather?.condition)
         _weather.value = weather?.let { "${it.condition} ${it.temperatureC}°C" } ?: "—"
 
-        // Load active character profile if character mode is on
-        val characterProfile = if (userPrefs.characterModeEnabled && userPrefs.activeCharacterName.isNotBlank()) {
-            db.characterProfileDao().getByName(userPrefs.activeCharacterName)
+        // Load active character profile — blend mode overrides by time of day
+        val characterProfile = if (userPrefs.characterModeEnabled) {
+            val characterName = if (userPrefs.blendModeEnabled) {
+                userPrefs.getBlendCharacterForTime(state.timeOfDay.name)
+            } else {
+                userPrefs.activeCharacterName
+            }
+            if (characterName.isNotBlank()) {
+                db.characterProfileDao().getByName(characterName)
+            } else null
         } else null
 
         // Select song (drama + mood + character read live so changes take effect on next pick)

@@ -250,7 +250,12 @@ class MainActivity : ComponentActivity() {
                                 characterModeEnabled = userPrefs.characterModeEnabled,
                                 activeCharacterName = userPrefs.activeCharacterName,
                                 characters = characterList,
-                                isGeneratingCharacter = isGeneratingCharacter
+                                isGeneratingCharacter = isGeneratingCharacter,
+                                blendModeEnabled = userPrefs.blendModeEnabled,
+                                blendMorning = userPrefs.blendMorning,
+                                blendAfternoon = userPrefs.blendAfternoon,
+                                blendEvening = userPrefs.blendEvening,
+                                blendNight = userPrefs.blendNight
                             ),
                             onProviderChanged = {
                                 userPrefs.llmProvider = it
@@ -290,6 +295,15 @@ class MainActivity : ComponentActivity() {
                                 userPrefs.activeCharacterName = name
                                 CoroutineScope(Dispatchers.IO).launch {
                                     activeCharacterProfile = db.characterProfileDao().getByName(name)
+                                }
+                            },
+                            onBlendModeChanged = { userPrefs.blendModeEnabled = it },
+                            onBlendSlotChanged = { slot, name ->
+                                when (slot) {
+                                    "MORNING" -> userPrefs.blendMorning = name
+                                    "AFTERNOON" -> userPrefs.blendAfternoon = name
+                                    "EVENING" -> userPrefs.blendEvening = name
+                                    "NIGHT" -> userPrefs.blendNight = name
                                 }
                             },
                             onGenerateCharacter = { name ->
@@ -350,9 +364,18 @@ class MainActivity : ComponentActivity() {
                                 libraryStatus = libraryStatus
                             ),
                             versionName = getVersionName(),
-                            characterColor1 = activeCharacterProfile?.color1,
-                            characterColor2 = activeCharacterProfile?.color2,
-                            characterName = if (userPrefs.characterModeEnabled) activeCharacterProfile?.name else null,
+                            characterColor1 = if (userPrefs.characterModeEnabled) {
+                                val blendChar = getBlendAwareCharacter()
+                                blendChar?.color1 ?: activeCharacterProfile?.color1
+                            } else null,
+                            characterColor2 = if (userPrefs.characterModeEnabled) {
+                                val blendChar = getBlendAwareCharacter()
+                                blendChar?.color2 ?: activeCharacterProfile?.color2
+                            } else null,
+                            characterName = if (userPrefs.characterModeEnabled) {
+                                val blendChar = getBlendAwareCharacter()
+                                blendChar?.name ?: activeCharacterProfile?.name
+                            } else null,
                             onStartScoring = { startScoring() },
                             onStopScoring = { stopScoring() },
                             onLogout = { logout() },
@@ -367,6 +390,14 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleSpotifyRedirect(intent)
+    }
+
+    private fun getBlendAwareCharacter(): com.underscore.app.data.CharacterProfile? {
+        if (!userPrefs.blendModeEnabled) return activeCharacterProfile
+        val timeOfDay = com.underscore.app.context.TimeOfDay.fromLocalTime(java.time.LocalTime.now())
+        val charName = userPrefs.getBlendCharacterForTime(timeOfDay.name)
+        if (charName.isBlank()) return activeCharacterProfile
+        return characterList.find { it.name == charName } ?: activeCharacterProfile
     }
 
     private fun handleSpotifyRedirect(intent: Intent?) {

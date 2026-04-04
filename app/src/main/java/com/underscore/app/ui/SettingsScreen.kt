@@ -58,7 +58,12 @@ data class SettingsState(
     val characterModeEnabled: Boolean = false,
     val activeCharacterName: String = "",
     val characters: List<com.underscore.app.data.CharacterProfile> = emptyList(),
-    val isGeneratingCharacter: Boolean = false
+    val isGeneratingCharacter: Boolean = false,
+    val blendModeEnabled: Boolean = false,
+    val blendMorning: String = "",
+    val blendAfternoon: String = "",
+    val blendEvening: String = "",
+    val blendNight: String = ""
 )
 
 @Composable
@@ -80,6 +85,8 @@ fun SettingsScreen(
     onCharacterModeChanged: (Boolean) -> Unit,
     onCharacterSelected: (String) -> Unit,
     onGenerateCharacter: (String) -> Unit,
+    onBlendModeChanged: (Boolean) -> Unit,
+    onBlendSlotChanged: (String, String) -> Unit,
     onDeleteAllData: () -> Unit,
     onShareDebugReport: () -> Unit,
     onBack: () -> Unit
@@ -218,9 +225,16 @@ fun SettingsScreen(
             activeCharacterName = state.activeCharacterName,
             characters = state.characters,
             isGenerating = state.isGeneratingCharacter,
+            blendEnabled = state.blendModeEnabled,
+            blendMorning = state.blendMorning,
+            blendAfternoon = state.blendAfternoon,
+            blendEvening = state.blendEvening,
+            blendNight = state.blendNight,
             onToggle = onCharacterModeChanged,
             onCharacterSelected = onCharacterSelected,
-            onGenerateCharacter = onGenerateCharacter
+            onGenerateCharacter = onGenerateCharacter,
+            onBlendModeChanged = onBlendModeChanged,
+            onBlendSlotChanged = onBlendSlotChanged
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -523,14 +537,122 @@ private fun SetupGuide(title: String, steps: List<String>, note: String) {
 }
 
 @Composable
+private fun BlendSlotRow(
+    slot: String,
+    timeRange: String,
+    currentChar: String,
+    characters: List<com.underscore.app.data.CharacterProfile>,
+    onCharacterSelected: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val displayName = currentChar.ifBlank { "Not set" }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(4.dp))
+                .background(
+                    if (currentChar.isNotBlank()) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                    else Color.Transparent
+                )
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    slot,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary,
+                    letterSpacing = 1.sp
+                )
+                Text(
+                    timeRange,
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (currentChar.isNotBlank()) {
+                    val char = characters.find { it.name == currentChar }
+                    if (char != null) {
+                        androidx.compose.foundation.Canvas(
+                            modifier = Modifier
+                                .height(12.dp)
+                                .width(12.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                        ) {
+                            drawRect(parseHexColor(char.color1))
+                            val halfPath = androidx.compose.ui.graphics.Path().apply {
+                                moveTo(size.width, 0f)
+                                lineTo(size.width, size.height)
+                                lineTo(0f, size.height)
+                                close()
+                            }
+                            drawPath(halfPath, parseHexColor(char.color2))
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                }
+                Text(
+                    displayName,
+                    fontSize = 11.sp,
+                    color = if (currentChar.isNotBlank()) MaterialTheme.colorScheme.onSurface
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = if (currentChar.isNotBlank()) FontWeight.Medium else FontWeight.Normal
+                )
+                Text(
+                    if (expanded) " ▼" else " ▶",
+                    fontSize = 10.sp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+
+        if (expanded) {
+            characters.forEach { char ->
+                Text(
+                    text = char.name,
+                    fontSize = 11.sp,
+                    color = if (char.name == currentChar) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = if (char.name == currentChar) FontWeight.Bold else FontWeight.Normal,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            onCharacterSelected(char.name)
+                            expanded = false
+                        }
+                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun CharacterModeSection(
     enabled: Boolean,
     activeCharacterName: String,
     characters: List<com.underscore.app.data.CharacterProfile>,
     isGenerating: Boolean,
+    blendEnabled: Boolean,
+    blendMorning: String,
+    blendAfternoon: String,
+    blendEvening: String,
+    blendNight: String,
     onToggle: (Boolean) -> Unit,
     onCharacterSelected: (String) -> Unit,
-    onGenerateCharacter: (String) -> Unit
+    onGenerateCharacter: (String) -> Unit,
+    onBlendModeChanged: (Boolean) -> Unit,
+    onBlendSlotChanged: (String, String) -> Unit
 ) {
     var customName by remember { mutableStateOf("") }
 
@@ -673,6 +795,46 @@ private fun CharacterModeSection(
                             letterSpacing = 1.sp
                         )
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ── Blend Mode ──
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Blend Mode", fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurface)
+                    Text(
+                        "Different characters for each time of day",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(checked = blendEnabled, onCheckedChange = onBlendModeChanged)
+            }
+
+            if (blendEnabled && characters.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                val charNames = characters.map { it.name }
+                val slots = listOf(
+                    Triple("MORNING", "06:00 – 12:00", blendMorning),
+                    Triple("AFTERNOON", "12:00 – 17:00", blendAfternoon),
+                    Triple("EVENING", "17:00 – 21:00", blendEvening),
+                    Triple("NIGHT", "21:00 – 06:00", blendNight)
+                )
+                slots.forEach { (slot, timeRange, currentChar) ->
+                    BlendSlotRow(
+                        slot = slot,
+                        timeRange = timeRange,
+                        currentChar = currentChar,
+                        characters = characters,
+                        onCharacterSelected = { name -> onBlendSlotChanged(slot, name) }
+                    )
                 }
             }
 
