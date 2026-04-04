@@ -8,6 +8,7 @@ import com.underscore.app.context.SceneClassification
 import com.underscore.app.context.SceneState
 import com.underscore.app.data.DramaScale
 import com.underscore.app.data.KnownLocation
+import com.underscore.app.data.CharacterProfile
 import com.underscore.app.data.SongDatabase
 import com.underscore.app.data.TaggedSong
 
