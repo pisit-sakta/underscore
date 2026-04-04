@@ -197,18 +197,20 @@ fun SettingsScreen(
 
         // ── Troubleshooting ──
         SectionHeader("TROUBLESHOOTING")
-        OutlinedButton(
+        Button(
             onClick = onShareDebugReport,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
         ) {
             Text(
-                "SHARE DEBUG REPORT",
+                "REPORT BUG",
                 letterSpacing = 2.sp,
-                fontSize = 12.sp
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
             )
         }
         Text(
-            text = "Collects device info, app config (no API keys), and recent logs. Share via clipboard, email, GitHub issue, etc.",
+            text = "Opens a GitHub issue with device info, config, and recent logs attached. One tap to submit.",
             fontSize = 11.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             lineHeight = 14.sp,

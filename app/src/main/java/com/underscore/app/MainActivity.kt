@@ -133,7 +133,7 @@ class MainActivity : ComponentActivity() {
                             onPlacesKeyChanged = { userPrefs.placesApiKey = it },
                             onBatterySaverChanged = { userPrefs.batterySaver = it },
                             onDeleteAllData = { deleteAllData() },
-                            onShareDebugReport = { LogCollector(this@MainActivity).shareReport() },
+                            onShareDebugReport = { LogCollector(this@MainActivity).reportBug() },
                             onBack = { showSettings = false }
                         )
                     }
