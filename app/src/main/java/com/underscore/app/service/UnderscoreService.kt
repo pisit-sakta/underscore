@@ -351,13 +351,9 @@ class UnderscoreService : LifecycleService() {
         state = state.copy(weather = weather?.condition)
         _weather.value = weather?.let { "${it.condition} ${it.temperatureC}°C" } ?: "—"
 
-        // Load active character profile — blend mode overrides by time of day
+        // Load active character profile
         val characterProfile = if (userPrefs.characterModeEnabled) {
-            val characterName = if (userPrefs.blendModeEnabled) {
-                userPrefs.getBlendCharacterForTime(state.timeOfDay.name)
-            } else {
-                userPrefs.activeCharacterName
-            }
+            val characterName = userPrefs.activeCharacterName
             if (characterName.isNotBlank()) {
                 db.characterProfileDao().getByName(characterName)
             } else null

@@ -47,12 +47,7 @@ data class SettingsState(
     val characterModeEnabled: Boolean = false,
     val activeCharacterName: String = "",
     val characters: List<CharacterProfile> = emptyList(),
-    val isGeneratingCharacter: Boolean = false,
-    val blendModeEnabled: Boolean = false,
-    val blendMorning: String = "",
-    val blendAfternoon: String = "",
-    val blendEvening: String = "",
-    val blendNight: String = ""
+    val isGeneratingCharacter: Boolean = false
 )
 
 /** Reusable sub-screen header with back button and title. */

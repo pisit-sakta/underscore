@@ -25,11 +25,6 @@ class UserPreferences(context: Context) {
         private const val KEY_MOOD_EXPIRES_AT = "mood_expires_at"
         private const val KEY_CHARACTER_MODE = "character_mode_enabled"
         private const val KEY_ACTIVE_CHARACTER = "active_character_name"
-        private const val KEY_BLEND_MODE = "blend_mode_enabled"
-        private const val KEY_BLEND_MORNING = "blend_morning"
-        private const val KEY_BLEND_AFTERNOON = "blend_afternoon"
-        private const val KEY_BLEND_EVENING = "blend_evening"
-        private const val KEY_BLEND_NIGHT = "blend_night"
         // Bump this when scopes change to force re-login
         const val CURRENT_SCOPE_VERSION = 2
     }
@@ -135,40 +130,6 @@ class UserPreferences(context: Context) {
     var activeCharacterName: String
         get() = prefs.getString(KEY_ACTIVE_CHARACTER, "") ?: ""
         set(value) { prefs.edit().putString(KEY_ACTIVE_CHARACTER, value).apply() }
-
-    // ── Blend Mode ──
-    var blendModeEnabled: Boolean
-        get() = prefs.getBoolean(KEY_BLEND_MODE, false)
-        set(value) { prefs.edit().putBoolean(KEY_BLEND_MODE, value).apply() }
-
-    var blendMorning: String
-        get() = prefs.getString(KEY_BLEND_MORNING, "") ?: ""
-        set(value) { prefs.edit().putString(KEY_BLEND_MORNING, value).apply() }
-
-    var blendAfternoon: String
-        get() = prefs.getString(KEY_BLEND_AFTERNOON, "") ?: ""
-        set(value) { prefs.edit().putString(KEY_BLEND_AFTERNOON, value).apply() }
-
-    var blendEvening: String
-        get() = prefs.getString(KEY_BLEND_EVENING, "") ?: ""
-        set(value) { prefs.edit().putString(KEY_BLEND_EVENING, value).apply() }
-
-    var blendNight: String
-        get() = prefs.getString(KEY_BLEND_NIGHT, "") ?: ""
-        set(value) { prefs.edit().putString(KEY_BLEND_NIGHT, value).apply() }
-
-    /** Get the character name for the current time of day, or fallback to activeCharacterName. */
-    fun getBlendCharacterForTime(timeOfDay: String): String {
-        if (!blendModeEnabled) return activeCharacterName
-        val blendChar = when (timeOfDay) {
-            "MORNING" -> blendMorning
-            "AFTERNOON" -> blendAfternoon
-            "EVENING" -> blendEvening
-            "NIGHT" -> blendNight
-            else -> ""
-        }
-        return blendChar.ifBlank { activeCharacterName }
-    }
 
     fun needsSpotifyRelogin(): Boolean = spotifyScopeVersion < CURRENT_SCOPE_VERSION
 
