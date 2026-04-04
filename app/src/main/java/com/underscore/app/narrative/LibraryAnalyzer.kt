@@ -4,7 +4,7 @@ import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.underscore.app.api.AudioFeatures
-import com.underscore.app.api.GeminiApi
+import com.underscore.app.api.LlmProvider
 import com.underscore.app.api.SpotifyTrack
 import com.underscore.app.api.SpotifyWebApi
 import com.underscore.app.data.SongDatabase
@@ -23,7 +23,7 @@ data class GeminiTagResult(
 
 class LibraryAnalyzer(
     private val spotifyApi: SpotifyWebApi,
-    private val geminiApi: GeminiApi,
+    private val geminiApi: LlmProvider,
     private val db: SongDatabase
 ) {
     companion object {
@@ -97,7 +97,11 @@ class LibraryAnalyzer(
             temperature = 0.4f,
             maxTokens = 4096,
             jsonMode = true
-        ) ?: return fallbackTag(tracks, featuresMap)
+        )
+        if (response == null) {
+            Log.w(TAG, "LLM returned null for batch of ${tracks.size} tracks — using audio-feature fallback tags")
+            return fallbackTag(tracks, featuresMap)
+        }
 
         return try {
             val type = object : TypeToken<List<GeminiTagResult>>() {}.type

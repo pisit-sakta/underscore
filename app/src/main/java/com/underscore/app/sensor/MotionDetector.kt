@@ -5,6 +5,7 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
+import android.util.Log
 import com.underscore.app.context.MovementIntensity
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -18,6 +19,10 @@ data class MotionUpdate(
 
 class MotionDetector(context: Context) {
 
+    companion object {
+        private const val TAG = "MotionDetector"
+    }
+
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
 
@@ -28,11 +33,13 @@ class MotionDetector(context: Context) {
 
     fun motionUpdates(): Flow<MotionUpdate> = callbackFlow {
         if (accelerometer == null) {
-            // No accelerometer — emit STILL and stay open
+            Log.w(TAG, "No accelerometer sensor available — motion will always be STILL")
             trySend(MotionUpdate(0f, MovementIntensity.STILL))
             awaitClose()
             return@callbackFlow
         }
+
+        Log.d(TAG, "Accelerometer registered")
 
         val listener = object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent) {
@@ -66,6 +73,7 @@ class MotionDetector(context: Context) {
         )
 
         awaitClose {
+            Log.d(TAG, "Accelerometer unregistered")
             sensorManager.unregisterListener(listener)
         }
     }

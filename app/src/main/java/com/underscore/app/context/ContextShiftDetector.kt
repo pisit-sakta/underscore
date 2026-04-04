@@ -1,6 +1,7 @@
 package com.underscore.app.context
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.scan
@@ -20,12 +21,13 @@ class ContextShiftDetector {
         SceneClassification.NIGHT_STATIONARY
     )
 
-    fun detectShifts(classificationFlow: Flow<SceneClassification>): Flow<ContextShift> {
-        return classificationFlow
-            .scan<SceneClassification, Pair<SceneClassification?, SceneClassification?>>(
+    fun detectShifts(sceneFlow: Flow<ClassifiedScene>): Flow<ContextShift> {
+        return sceneFlow
+            .distinctUntilChangedBy { it.classification }
+            .scan<ClassifiedScene, Pair<SceneClassification?, SceneClassification?>>(
                 null to null
             ) { prev, current ->
-                prev.second to current
+                prev.second to current.classification
             }
             .filter { (prev, current) -> prev != null && current != null && prev != current }
             .map { (prev, current) ->
@@ -40,7 +42,6 @@ class ContextShiftDetector {
     }
 
     private fun isUrgentTransition(from: SceneClassification, to: SceneClassification): Boolean {
-        // Stationary -> Transit or any -> Active are urgent
         if (from in stationaryTypes && to == SceneClassification.TRANSIT) return true
         if (to == SceneClassification.ACTIVE) return true
         return false

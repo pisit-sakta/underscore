@@ -1,5 +1,6 @@
 package com.underscore.app.sensor
 
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.Dispatchers
@@ -8,8 +9,8 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 
 data class WeatherState(
-    val condition: String,    // "clear", "clouds", "rain", "storm", "snow", "fog"
-    val description: String,  // "light rain", "overcast clouds", etc.
+    val condition: String,
+    val description: String,
     val temperatureC: Float,
     val humidity: Int
 )
@@ -33,8 +34,7 @@ data class OpenWeatherMain(
 class WeatherProvider(private val apiKey: String) {
 
     companion object {
-        // ⚠️ REPLACE with your OpenWeatherMap API key
-        // Get one free at https://openweathermap.org/api
+        private const val TAG = "WeatherProvider"
         const val DEFAULT_API_KEY = "YOUR_OPENWEATHER_API_KEY_HERE"
         private const val BASE_URL = "https://api.openweathermap.org/data/2.5/weather"
     }
@@ -44,27 +44,44 @@ class WeatherProvider(private val apiKey: String) {
 
     private var cachedWeather: WeatherState? = null
     private var lastFetchTime: Long = 0
-    private val cacheDurationMs = 10 * 60 * 1000L // 10 minutes
+    private val cacheDurationMs = 10 * 60 * 1000L
 
     suspend fun getWeather(lat: Double, lon: Double): WeatherState? {
-        // Return cached if fresh enough
         if (cachedWeather != null && System.currentTimeMillis() - lastFetchTime < cacheDurationMs) {
             return cachedWeather
         }
 
-        if (apiKey == DEFAULT_API_KEY) return null
+        if (apiKey == DEFAULT_API_KEY || apiKey.isBlank()) {
+            Log.d(TAG, "No weather API key configured — skipping")
+            return null
+        }
 
         return withContext(Dispatchers.IO) {
             try {
                 val url = "$BASE_URL?lat=$lat&lon=$lon&appid=$apiKey&units=metric"
+                Log.d(TAG, "Fetching weather for ${"%.3f".format(lat)}, ${"%.3f".format(lon)}")
+
                 val request = Request.Builder().url(url).build()
                 val response = client.newCall(request).execute()
 
-                if (!response.isSuccessful) return@withContext null
+                if (!response.isSuccessful) {
+                    val errorBody = response.body?.string()?.take(300)
+                    Log.e(TAG, "Weather API ${response.code}: $errorBody")
+                    return@withContext null
+                }
 
-                val body = response.body?.string() ?: return@withContext null
+                val body = response.body?.string()
+                if (body == null) {
+                    Log.e(TAG, "Weather API returned null body")
+                    return@withContext null
+                }
+
                 val data = gson.fromJson(body, OpenWeatherResponse::class.java)
-                val condition = data.weather.firstOrNull() ?: return@withContext null
+                val condition = data.weather.firstOrNull()
+                if (condition == null) {
+                    Log.w(TAG, "Weather response missing condition data: ${body.take(200)}")
+                    return@withContext null
+                }
 
                 val weather = WeatherState(
                     condition = normalizeCondition(condition.main),
@@ -75,8 +92,10 @@ class WeatherProvider(private val apiKey: String) {
 
                 cachedWeather = weather
                 lastFetchTime = System.currentTimeMillis()
+                Log.d(TAG, "Weather: ${weather.condition} (${weather.description}), ${weather.temperatureC}°C")
                 weather
             } catch (e: Exception) {
+                Log.e(TAG, "Weather fetch failed: ${e.message}", e)
                 null
             }
         }

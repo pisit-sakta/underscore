@@ -3,9 +3,10 @@ package com.underscore.app.narrative
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.underscore.app.api.GeminiApi
+import com.underscore.app.api.LlmProvider
 import com.underscore.app.context.SceneClassification
 import com.underscore.app.context.SceneState
+import com.underscore.app.data.KnownLocation
 import com.underscore.app.data.SongDatabase
 import com.underscore.app.data.TaggedSong
 
@@ -14,7 +15,7 @@ data class SongSelection(
     val title: String,
     val artist: String,
     val matchReason: String,
-    val transitionType: String, // "normal", "urgent", "dramatic_silence"
+    val transitionType: String,
     val transitionDurationMs: Long
 )
 
@@ -28,26 +29,27 @@ data class GeminiSongSelection(
 )
 
 class NarrativeEngine(
-    private val geminiApi: GeminiApi,
-    private val db: SongDatabase
+    private val llmProvider: LlmProvider,
+    private val db: SongDatabase,
+    private val profileManager: ProtagonistProfileManager? = null
 ) {
     companion object {
         private const val TAG = "NarrativeEngine"
         private const val CANDIDATE_POOL_SIZE = 20
-        private const val RECENTLY_PLAYED_WINDOW_MS = 30 * 60 * 1000L // 30 min
+        private const val RECENTLY_PLAYED_WINDOW_MS = 30 * 60 * 1000L
     }
 
     private val gson = Gson()
-    private val fallbackSelector = SongSelector() // Sprint 0 fallback
+    private val fallbackSelector = SongSelector()
 
     suspend fun selectSong(
         sceneState: SceneState,
         classification: SceneClassification,
-        weather: String? = null
+        weather: String? = null,
+        knownLocation: KnownLocation? = null
     ): SongSelection {
         val allSongs = db.taggedSongDao().getAll()
 
-        // If library not yet analyzed, fall back to hardcoded selector
         if (allSongs.size < 10) {
             Log.d(TAG, "Library not analyzed yet, using fallback selector")
             val track = fallbackSelector.selectTrack(classification)
@@ -61,12 +63,27 @@ class NarrativeEngine(
             )
         }
 
-        // Get recently played to avoid repeats
+        // Check for leitmotif at known location
+        if (knownLocation?.leitmotifUri != null) {
+            val leitmotifSong = db.taggedSongDao().getByUri(knownLocation.leitmotifUri)
+            if (leitmotifSong != null && classification in stationaryClassifications()) {
+                Log.d(TAG, "Playing leitmotif for ${knownLocation.label}: ${leitmotifSong.title}")
+                db.taggedSongDao().recordPlay(leitmotifSong.spotifyUri)
+                return SongSelection(
+                    spotifyUri = leitmotifSong.spotifyUri,
+                    title = leitmotifSong.title,
+                    artist = leitmotifSong.artist,
+                    matchReason = "Leitmotif for ${knownLocation.label}",
+                    transitionType = "normal",
+                    transitionDurationMs = 3000
+                )
+            }
+        }
+
         val recentUris = db.taggedSongDao().getRecentlyPlayedUris(
             System.currentTimeMillis() - RECENTLY_PLAYED_WINDOW_MS
         )
 
-        // Pre-filter candidates by scene type relevance
         val candidates = preselectCandidates(allSongs, classification, recentUris)
 
         if (candidates.isEmpty()) {
@@ -83,10 +100,8 @@ class NarrativeEngine(
             )
         }
 
-        // Build scene description for Gemini
-        val sceneDescription = buildSceneDescription(sceneState, classification, weather)
+        val sceneDescription = buildSceneDescription(sceneState, classification, weather, knownLocation)
 
-        // Build track summaries for prompt
         val trackSummaries = candidates.map { song ->
             TaggedTrackSummary(
                 uri = song.spotifyUri,
@@ -99,8 +114,13 @@ class NarrativeEngine(
             )
         }
 
-        val prompt = Prompts.buildScoringPrompt(sceneDescription, trackSummaries, recentUris.take(5))
-        val response = geminiApi.generate(
+        // Build protagonist context if available
+        val protagonistContext = profileManager?.buildPromptContext() ?: ""
+
+        val prompt = Prompts.buildScoringPrompt(sceneDescription, trackSummaries, recentUris.take(5), protagonistContext)
+        Log.d(TAG, "Querying LLM (${llmProvider.name}) with ${candidates.size} candidates for $classification")
+
+        val response = llmProvider.generate(
             prompt = prompt,
             systemPrompt = Prompts.SCENE_SCORER,
             temperature = 0.6f,
@@ -108,10 +128,13 @@ class NarrativeEngine(
             jsonMode = true
         )
 
+        if (response == null) {
+            Log.w(TAG, "LLM returned null — falling back to local selection")
+        }
+
         if (response != null) {
             try {
                 val selection = gson.fromJson(response, GeminiSongSelection::class.java)
-                // Record the play
                 db.taggedSongDao().recordPlay(selection.spotify_uri)
 
                 return SongSelection(
@@ -123,22 +146,28 @@ class NarrativeEngine(
                     transitionDurationMs = selection.transition_duration_ms
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to parse Gemini selection", e)
+                Log.e(TAG, "Failed to parse LLM selection", e)
             }
         }
 
-        // Fallback: pick best candidate locally
         val pick = candidates.random()
         db.taggedSongDao().recordPlay(pick.spotifyUri)
         return SongSelection(
             spotifyUri = pick.spotifyUri,
             title = pick.title,
             artist = pick.artist,
-            matchReason = "Local selection (Gemini unavailable)",
+            matchReason = "Local selection (LLM unavailable)",
             transitionType = "normal",
             transitionDurationMs = 3000
         )
     }
+
+    private fun stationaryClassifications() = setOf(
+        SceneClassification.MORNING_STATIONARY,
+        SceneClassification.DAYTIME_STATIONARY,
+        SceneClassification.EVENING_STATIONARY,
+        SceneClassification.NIGHT_STATIONARY
+    )
 
     private fun preselectCandidates(
         allSongs: List<TaggedSong>,
@@ -147,7 +176,6 @@ class NarrativeEngine(
     ): List<TaggedSong> {
         val sceneKeywords = classificationToKeywords(classification)
 
-        // Score each song by how many scene keywords match
         val scored = allSongs
             .filter { it.spotifyUri !in recentUris }
             .map { song ->
@@ -159,7 +187,6 @@ class NarrativeEngine(
                     sceneKeywords.any { keyword -> sceneType.contains(keyword, ignoreCase = true) }
                 }
 
-                // Also factor in energy matching
                 val energyScore = when (classification) {
                     SceneClassification.ACTIVE -> if (song.energy > 0.7f) 2 else 0
                     SceneClassification.TRANSIT -> if (song.energy in 0.4f..0.8f) 1 else 0
@@ -169,7 +196,10 @@ class NarrativeEngine(
                     else -> 0
                 }
 
-                song to (matchScore + energyScore)
+                // Learning loop: boost songs user liked, penalize skipped
+                val feedbackScore = song.boostCount - song.skipCount
+
+                song to (matchScore + energyScore + feedbackScore)
             }
             .sortedByDescending { it.second }
             .take(CANDIDATE_POOL_SIZE)
@@ -192,15 +222,45 @@ class NarrativeEngine(
     private fun buildSceneDescription(
         state: SceneState,
         classification: SceneClassification,
-        weather: String?
+        weather: String?,
+        knownLocation: KnownLocation? = null
     ): String {
         val parts = mutableListOf<String>()
         parts.add("Classification: ${classification.name}")
         parts.add("Time of day: ${state.timeOfDay.name}")
-        parts.add("Movement: ${state.movementIntensity.name}")
-        parts.add("Speed: ${state.speedKmh} km/h")
 
+        // World Layer
+        if (state.placeType != null) parts.add("Place type: ${state.placeType}")
+        if (state.zoneCharacter != null) parts.add("Zone character: ${state.zoneCharacter}")
+        if (state.tonalPalette != null) parts.add("Tonal palette: ${state.tonalPalette}")
+        if (state.narrativeFunction != null) parts.add("Narrative function: ${state.narrativeFunction}")
+        if (state.nearbyLandmarks.isNotEmpty()) {
+            parts.add("Nearby landmarks: ${state.nearbyLandmarks.joinToString(", ")}")
+        }
+
+        // Known location context
+        if (knownLocation != null) {
+            parts.add("Known location: ${knownLocation.label} (visited ${knownLocation.visitCount} times)")
+            if (knownLocation.leitmotifTitle != null) {
+                parts.add("Location leitmotif: ${knownLocation.leitmotifTitle}")
+            }
+        }
+
+        // Action Layer
+        parts.add("Movement: ${state.movementIntensity.name}")
+        parts.add("Speed: ${"%.1f".format(state.speedKmh)} km/h")
+        if (state.heartRateBpm > 0) {
+            parts.add("Heart rate: ${state.heartRateBpm} bpm (${state.heartRateState})")
+        }
+
+        // Layer priority
+        parts.add("Layer priority: ${deriveLayerPriority(state, classification)}")
+
+        // Context
         if (weather != null) parts.add("Weather: $weather")
+        if (state.minutesInCurrentScene > 0) {
+            parts.add("Minutes in current scene: ${state.minutesInCurrentScene}")
+        }
 
         state.previousClassification?.let {
             parts.add("Previous scene: ${it.name}")
@@ -208,5 +268,36 @@ class NarrativeEngine(
         }
 
         return parts.joinToString("\n")
+    }
+
+    private fun deriveLayerPriority(state: SceneState, classification: SceneClassification): String {
+        val actionIntensity = when (state.movementIntensity) {
+            com.underscore.app.context.MovementIntensity.STILL -> 0.0f
+            com.underscore.app.context.MovementIntensity.LIGHT -> 0.25f
+            com.underscore.app.context.MovementIntensity.MODERATE -> 0.55f
+            com.underscore.app.context.MovementIntensity.INTENSE -> 0.9f
+        }
+
+        // Heart rate can spike action priority even when still
+        val hrBoost = when {
+            state.heartRateBpm > 140 -> 0.3f
+            state.heartRateBpm > 110 -> 0.15f
+            else -> 0.0f
+        }
+
+        val effectiveIntensity = (actionIntensity + hrBoost).coerceAtMost(1.0f)
+
+        return when {
+            effectiveIntensity < 0.2f -> "world_dominant"
+            effectiveIntensity < 0.4f -> "blended"
+            effectiveIntensity < 0.7f -> "action_dominant_world_colored"
+            else -> when {
+                state.previousClassification in stationaryClassifications() ->
+                    "action_dominant_post_departure"
+                state.heartRateBpm > 120 && state.movementIntensity == com.underscore.app.context.MovementIntensity.STILL ->
+                    "world_dominant_action_tension"
+                else -> "action_dominant_world_colored"
+            }
+        }
     }
 }
