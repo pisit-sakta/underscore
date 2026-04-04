@@ -359,6 +359,12 @@ class UnderscoreService : LifecycleService() {
             } else null
         } else null
 
+        // Build Spotify API for character mode (franchise soundtrack search)
+        val spotifyApi = if (characterProfile != null) {
+            val token = SpotifyAuth(this).getAccessToken()
+            if (token != null) SpotifyWebApi(token) else null
+        } else null
+
         // Select song (drama + mood + character read live so changes take effect on next pick)
         val selection = narrativeEngine.selectSong(
             sceneState = state,
@@ -367,7 +373,8 @@ class UnderscoreService : LifecycleService() {
             knownLocation = knownLocation,
             dramaScale = userPrefs.dramaScale,
             customMood = userPrefs.getActiveMood(),
-            characterProfile = characterProfile
+            characterProfile = characterProfile,
+            spotifyApi = spotifyApi
         )
 
         AppLog.d(TAG, "Selected: ${selection.title} by ${selection.artist}")

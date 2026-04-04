@@ -209,6 +209,25 @@ class SpotifyWebApi(private val accessToken: String) {
         return tracks
     }
 
+    // ── Search (for character mode — franchise soundtracks) ──
+
+    data class SearchTracksResult(
+        val tracks: SearchTracksWrapper?
+    )
+
+    data class SearchTracksWrapper(
+        val items: List<SpotifyTrack>
+    )
+
+    suspend fun searchTracks(query: String, limit: Int = 10): List<SpotifyTrack> {
+        val encoded = java.net.URLEncoder.encode(query, "UTF-8")
+        val response = get(
+            "$baseUrl/search?q=$encoded&type=track&limit=$limit",
+            SearchTracksResult::class.java
+        )
+        return response?.tracks?.items ?: emptyList()
+    }
+
     suspend fun getAudioFeatures(trackIds: List<String>): List<AudioFeatures> {
         if (trackIds.isEmpty()) return emptyList()
 

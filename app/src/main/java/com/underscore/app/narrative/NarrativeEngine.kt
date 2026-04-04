@@ -1,6 +1,8 @@
 package com.underscore.app.narrative
 
 import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
+import com.underscore.app.api.SpotifyWebApi
 import com.underscore.app.debug.AppLog
 import com.google.gson.reflect.TypeToken
 import com.underscore.app.api.LlmProvider
@@ -44,6 +46,15 @@ class NarrativeEngine(
     private val gson = Gson()
     private val fallbackSelector = SongSelector()
 
+    /** LLM response for character mode — recommends a franchise track to search Spotify for. */
+    private data class CharacterSongRecommendation(
+        val title: String,
+        val artist: String,
+        @SerializedName("match_reason") val matchReason: String,
+        @SerializedName("search_query") val searchQuery: String,
+        @SerializedName("transition_type") val transitionType: String = "normal"
+    )
+
     suspend fun selectSong(
         sceneState: SceneState,
         classification: SceneClassification,
@@ -51,8 +62,17 @@ class NarrativeEngine(
         knownLocation: KnownLocation? = null,
         dramaScale: Int = 5,
         customMood: String? = null,
-        characterProfile: CharacterProfile? = null
+        characterProfile: CharacterProfile? = null,
+        spotifyApi: SpotifyWebApi? = null
     ): SongSelection {
+        // ── CHARACTER MODE: LLM picks franchise soundtrack, search Spotify ──
+        if (characterProfile != null && spotifyApi != null && llmProvider.isConfigured) {
+            val result = selectCharacterSong(sceneState, classification, weather, dramaScale, customMood, characterProfile, spotifyApi)
+            if (result != null) return result
+            AppLog.w(TAG, "Character mode selection failed, falling back to library")
+        }
+
+        // ── PROTAGONIST MODE: pick from user's analyzed library ──
         val allSongs = db.taggedSongDao().getAll()
 
         if (allSongs.size < 3) {
@@ -175,6 +195,83 @@ class NarrativeEngine(
             transitionType = "normal",
             transitionDurationMs = 3000
         )
+    }
+
+    /**
+     * Character mode: LLM recommends a franchise-appropriate track for the current scene,
+     * then we search Spotify and play it. No user library involved.
+     */
+    private suspend fun selectCharacterSong(
+        sceneState: SceneState,
+        classification: SceneClassification,
+        weather: String?,
+        dramaScale: Int,
+        customMood: String?,
+        characterProfile: CharacterProfile,
+        spotifyApi: SpotifyWebApi
+    ): SongSelection? {
+        val sceneDescription = buildSceneDescription(sceneState, classification, weather, null, dramaScale, customMood)
+        val characterContext = profileManager?.buildCharacterPromptContext(characterProfile) ?: ""
+
+        val prompt = """
+You are scoring a real person's life as if they are ${characterProfile.name} from ${characterProfile.franchise}.
+
+CURRENT SCENE: $sceneDescription
+
+CHARACTER PROFILE:
+$characterContext
+
+Pick ONE song from the ${characterProfile.franchise} soundtrack (or closely related franchise music) that perfectly scores this moment. The song must exist on Spotify.
+
+Return JSON with:
+- title: exact song title as it appears on Spotify
+- artist: exact artist name
+- search_query: optimized Spotify search query (e.g. "Skyfall Adele" or "Bury the Light Devil May Cry")
+- match_reason: why this song fits this exact moment for this character (1-2 sentences)
+- transition_type: "normal", "dramatic_silence", or "urgent"
+""".trimIndent()
+
+        AppLog.d(TAG, "Character mode: querying LLM for ${characterProfile.name} soundtrack pick")
+
+        val response = llmProvider.generate(
+            prompt = prompt,
+            systemPrompt = Prompts.SCENE_SCORER,
+            temperature = 0.7f,
+            maxTokens = 512,
+            jsonMode = true
+        )
+
+        if (response == null) {
+            AppLog.w(TAG, "Character mode LLM returned null")
+            return null
+        }
+
+        return try {
+            val recommendation = gson.fromJson(response, CharacterSongRecommendation::class.java)
+            AppLog.d(TAG, "Character mode recommends: ${recommendation.title} by ${recommendation.artist}")
+
+            // Search Spotify for the recommended track
+            val searchResults = spotifyApi.searchTracks(recommendation.searchQuery, 5)
+            val match = searchResults.firstOrNull()
+
+            if (match != null) {
+                AppLog.d(TAG, "Spotify match found: ${match.name} by ${match.artistName} (${match.uri})")
+                SongSelection(
+                    spotifyUri = match.uri,
+                    title = match.name,
+                    artist = match.artistName,
+                    matchReason = "${characterProfile.name}: ${recommendation.matchReason}",
+                    transitionType = recommendation.transitionType,
+                    transitionDurationMs = 3000
+                )
+            } else {
+                AppLog.w(TAG, "No Spotify result for: ${recommendation.searchQuery}")
+                null
+            }
+        } catch (e: Exception) {
+            AppLog.e(TAG, "Failed to parse character song recommendation", e)
+            null
+        }
     }
 
     private fun stationaryClassifications() = setOf(

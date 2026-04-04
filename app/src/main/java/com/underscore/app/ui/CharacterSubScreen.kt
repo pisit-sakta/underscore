@@ -47,6 +47,7 @@ fun CharacterSubScreen(
 ) {
     var customName by remember { mutableStateOf("") }
     var localCharacterMode by remember { mutableStateOf(characterModeEnabled) }
+    var localActiveCharacter by remember { mutableStateOf(activeCharacterName) }
 
     Column(
         modifier = Modifier
@@ -72,7 +73,7 @@ fun CharacterSubScreen(
             Column {
                 Text("Character Mode", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
                 Text(
-                    if (localCharacterMode && activeCharacterName.isNotBlank()) activeCharacterName
+                    if (localCharacterMode && localActiveCharacter.isNotBlank()) localActiveCharacter
                     else "Score your life as a character",
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -85,8 +86,8 @@ fun CharacterSubScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Active character preview
-            if (activeCharacterName.isNotBlank()) {
-                val activeChar = characters.find { it.name == activeCharacterName }
+            if (localActiveCharacter.isNotBlank()) {
+                val activeChar = characters.find { it.name == localActiveCharacter }
                 if (activeChar != null) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -123,7 +124,7 @@ fun CharacterSubScreen(
             SectionHeader("SELECT CHARACTER")
 
             characters.forEach { character ->
-                val isActive = character.name == activeCharacterName
+                val isActive = character.name == localActiveCharacter
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -133,7 +134,7 @@ fun CharacterSubScreen(
                             if (isActive) MaterialTheme.colorScheme.primaryContainer
                             else Color.Transparent
                         )
-                        .clickable { onCharacterSelected(character.name) }
+                        .clickable { localActiveCharacter = character.name; onCharacterSelected(character.name) }
                         .padding(horizontal = 8.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
