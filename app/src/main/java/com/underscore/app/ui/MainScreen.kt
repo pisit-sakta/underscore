@@ -101,7 +101,7 @@ fun MainScreen(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "SETTINGS",
+                        text = "OPTIONS",
                         fontSize = 10.sp,
                         color = headerTextColor.copy(alpha = 0.8f),
                         letterSpacing = 1.sp,

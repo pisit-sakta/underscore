@@ -26,11 +26,18 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.underscore.app.auth.SpotifyAuth
 import com.underscore.app.data.CharacterProfile
+import com.underscore.app.data.DramaScale
 import com.underscore.app.data.PresetCharacters
 import com.underscore.app.data.SongDatabase
 import com.underscore.app.data.UserPreferences
 import com.underscore.app.narrative.CharacterGenerator
+import com.underscore.app.ui.AppScreen
+import com.underscore.app.ui.CharacterSubScreen
 import com.underscore.app.ui.ColorHarmonyValidator
+import com.underscore.app.ui.DramaSubScreen
+import com.underscore.app.ui.MoodSubScreen
+import com.underscore.app.ui.OptionsMenuScreen
+import com.underscore.app.ui.SettingsSubScreen
 import com.underscore.app.debug.LogCollector
 import com.underscore.app.playback.NowPlaying
 import com.underscore.app.playback.PlaybackController
@@ -38,7 +45,6 @@ import com.underscore.app.service.UnderscoreService
 import com.underscore.app.ui.LoginScreen
 import com.underscore.app.ui.MainScreen
 import com.underscore.app.ui.SensorDebugInfo
-import com.underscore.app.ui.SettingsScreen
 import com.underscore.app.ui.SettingsState
 import com.underscore.app.ui.theme.UnderscoreTheme
 import com.underscore.app.updater.AppUpdater
@@ -57,7 +63,7 @@ class MainActivity : ComponentActivity() {
 
     private var sensorDebug by mutableStateOf(SensorDebugInfo())
     private var pendingUpdate by mutableStateOf<UpdateInfo?>(null)
-    private var showSettings by mutableStateOf(false)
+    private var currentScreen by mutableStateOf<AppScreen>(AppScreen.Main)
     private var showSpotifyHint by mutableStateOf(false)
     private var characterList by mutableStateOf<List<CharacterProfile>>(emptyList())
     private var isGeneratingCharacter by mutableStateOf(false)
@@ -226,14 +232,28 @@ class MainActivity : ComponentActivity() {
                 val sensorTime by UnderscoreService.timeOfDay.collectAsState()
                 val sensorWeather by UnderscoreService.weather.collectAsState()
 
-                when {
-                    !isLoggedIn -> {
-                        LoginScreen(
-                            onConnectSpotify = { spotifyAuth.startAuth(this@MainActivity) }
+                if (!isLoggedIn) {
+                    LoginScreen(
+                        onConnectSpotify = { spotifyAuth.startAuth(this@MainActivity) }
+                    )
+                } else when (currentScreen) {
+                    AppScreen.OptionsMenu -> {
+                        OptionsMenuScreen(
+                            providerName = userPrefs.llmProvider.displayName,
+                            characterSummary = if (userPrefs.characterModeEnabled)
+                                userPrefs.activeCharacterName.ifBlank { "Enabled" } else "Off",
+                            moodSummary = userPrefs.getActiveMood()?.ifBlank { null }
+                                ?: "No active vibe",
+                            dramaSummary = "${userPrefs.dramaScale} — ${DramaScale.getDisplayName(userPrefs.dramaScale, userPrefs.foodAnalogyMode)}",
+                            onSettingsClick = { currentScreen = AppScreen.Settings },
+                            onCharacterClick = { currentScreen = AppScreen.Character },
+                            onMoodClick = { currentScreen = AppScreen.Mood },
+                            onDramaClick = { currentScreen = AppScreen.Drama },
+                            onBack = { currentScreen = AppScreen.Main }
                         )
                     }
-                    showSettings -> {
-                        SettingsScreen(
+                    AppScreen.Settings -> {
+                        SettingsSubScreen(
                             state = SettingsState(
                                 provider = userPrefs.llmProvider,
                                 geminiKey = userPrefs.geminiApiKey,
@@ -243,24 +263,10 @@ class MainActivity : ComponentActivity() {
                                 customModel = userPrefs.customModel,
                                 weatherKey = userPrefs.weatherApiKey,
                                 placesKey = userPrefs.placesApiKey,
-                                batterySaver = userPrefs.batterySaver,
-                                dramaScale = userPrefs.dramaScale,
-                                foodAnalogyMode = userPrefs.foodAnalogyMode,
-                                customMood = userPrefs.getActiveMood() ?: "",
-                                moodExpiresAt = userPrefs.moodExpiresAt,
-                                characterModeEnabled = userPrefs.characterModeEnabled,
-                                activeCharacterName = userPrefs.activeCharacterName,
-                                characters = characterList,
-                                isGeneratingCharacter = isGeneratingCharacter,
-                                blendModeEnabled = userPrefs.blendModeEnabled,
-                                blendMorning = userPrefs.blendMorning,
-                                blendAfternoon = userPrefs.blendAfternoon,
-                                blendEvening = userPrefs.blendEvening,
-                                blendNight = userPrefs.blendNight
+                                batterySaver = userPrefs.batterySaver
                             ),
                             onProviderChanged = {
                                 userPrefs.llmProvider = it
-                                // Restart service so it picks up the new provider
                                 if (UnderscoreService.isRunning.value) {
                                     stopScoring()
                                     startScoring()
@@ -274,12 +280,17 @@ class MainActivity : ComponentActivity() {
                             onWeatherKeyChanged = { userPrefs.weatherApiKey = it },
                             onPlacesKeyChanged = { userPrefs.placesApiKey = it },
                             onBatterySaverChanged = { userPrefs.batterySaver = it },
-                            onDramaScaleChanged = { userPrefs.dramaScale = it },
-                            onFoodAnalogyChanged = { userPrefs.foodAnalogyMode = it },
-                            onMoodChanged = { mood, durationMs ->
-                                userPrefs.setMoodWithDuration(mood, durationMs)
-                            },
-                            onMoodCleared = { userPrefs.clearMood() },
+                            onDeleteAllData = { deleteAllData() },
+                            onShareDebugReport = { LogCollector(this@MainActivity).reportBug() },
+                            onBack = { currentScreen = AppScreen.OptionsMenu }
+                        )
+                    }
+                    AppScreen.Character -> {
+                        CharacterSubScreen(
+                            characterModeEnabled = userPrefs.characterModeEnabled,
+                            activeCharacterName = userPrefs.activeCharacterName,
+                            characters = characterList,
+                            isGeneratingCharacter = isGeneratingCharacter,
                             onCharacterModeChanged = { enabled ->
                                 userPrefs.characterModeEnabled = enabled
                                 if (!enabled) activeCharacterProfile = null
@@ -296,15 +307,6 @@ class MainActivity : ComponentActivity() {
                                 userPrefs.activeCharacterName = name
                                 CoroutineScope(Dispatchers.IO).launch {
                                     activeCharacterProfile = db.characterProfileDao().getByName(name)
-                                }
-                            },
-                            onBlendModeChanged = { userPrefs.blendModeEnabled = it },
-                            onBlendSlotChanged = { slot, name ->
-                                when (slot) {
-                                    "MORNING" -> userPrefs.blendMorning = name
-                                    "AFTERNOON" -> userPrefs.blendAfternoon = name
-                                    "EVENING" -> userPrefs.blendEvening = name
-                                    "NIGHT" -> userPrefs.blendNight = name
                                 }
                             },
                             onGenerateCharacter = { name ->
@@ -328,7 +330,6 @@ class MainActivity : ComponentActivity() {
                                         val generator = CharacterGenerator(llmProvider)
                                         val profile = generator.generate(name)
                                         if (profile != null) {
-                                            // Validate LLM-generated colors for harmony
                                             val validated = ColorHarmonyValidator.validate(profile.color1, profile.color2)
                                             val finalProfile = if (validated.wasModified) {
                                                 com.underscore.app.debug.AppLog.d("MainActivity",
@@ -348,9 +349,27 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             },
-                            onDeleteAllData = { deleteAllData() },
-                            onShareDebugReport = { LogCollector(this@MainActivity).reportBug() },
-                            onBack = { showSettings = false }
+                            onBack = { currentScreen = AppScreen.OptionsMenu }
+                        )
+                    }
+                    AppScreen.Mood -> {
+                        MoodSubScreen(
+                            currentMood = userPrefs.getActiveMood() ?: "",
+                            moodExpiresAt = userPrefs.moodExpiresAt,
+                            onMoodSet = { mood, durationMs ->
+                                userPrefs.setMoodWithDuration(mood, durationMs)
+                            },
+                            onMoodCleared = { userPrefs.clearMood() },
+                            onBack = { currentScreen = AppScreen.OptionsMenu }
+                        )
+                    }
+                    AppScreen.Drama -> {
+                        DramaSubScreen(
+                            dramaScale = userPrefs.dramaScale,
+                            foodAnalogyMode = userPrefs.foodAnalogyMode,
+                            onDramaScaleChanged = { userPrefs.dramaScale = it },
+                            onFoodAnalogyChanged = { userPrefs.foodAnalogyMode = it },
+                            onBack = { currentScreen = AppScreen.OptionsMenu }
                         )
                     }
                     else -> {
@@ -373,30 +392,15 @@ class MainActivity : ComponentActivity() {
                                 libraryStatus = libraryStatus
                             ),
                             versionName = getVersionName(),
-                            characterColor1 = if (userPrefs.characterModeEnabled) {
-                                val blendChar = getBlendAwareCharacter()
-                                blendChar?.color1 ?: activeCharacterProfile?.color1
-                            } else null,
-                            characterColor2 = if (userPrefs.characterModeEnabled) {
-                                val blendChar = getBlendAwareCharacter()
-                                blendChar?.color2 ?: activeCharacterProfile?.color2
-                            } else null,
-                            characterName = if (userPrefs.characterModeEnabled) {
-                                val blendChar = getBlendAwareCharacter()
-                                blendChar?.name ?: activeCharacterProfile?.name
-                            } else null,
-                            characterTagline = if (userPrefs.characterModeEnabled) {
-                                val blendChar = getBlendAwareCharacter()
-                                blendChar?.tagline ?: activeCharacterProfile?.tagline
-                            } else null,
-                            characterFranchise = if (userPrefs.characterModeEnabled) {
-                                val blendChar = getBlendAwareCharacter()
-                                blendChar?.franchise ?: activeCharacterProfile?.franchise
-                            } else null,
+                            characterColor1 = if (userPrefs.characterModeEnabled) activeCharacterProfile?.color1 else null,
+                            characterColor2 = if (userPrefs.characterModeEnabled) activeCharacterProfile?.color2 else null,
+                            characterName = if (userPrefs.characterModeEnabled) activeCharacterProfile?.name else null,
+                            characterTagline = if (userPrefs.characterModeEnabled) activeCharacterProfile?.tagline else null,
+                            characterFranchise = if (userPrefs.characterModeEnabled) activeCharacterProfile?.franchise else null,
                             onStartScoring = { startScoring() },
                             onStopScoring = { stopScoring() },
                             onLogout = { logout() },
-                            onSettings = { showSettings = true }
+                            onSettings = { currentScreen = AppScreen.OptionsMenu }
                         )
                     }
                 }
@@ -407,14 +411,6 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleSpotifyRedirect(intent)
-    }
-
-    private fun getBlendAwareCharacter(): com.underscore.app.data.CharacterProfile? {
-        if (!userPrefs.blendModeEnabled) return activeCharacterProfile
-        val timeOfDay = com.underscore.app.context.TimeOfDay.fromLocalTime(java.time.LocalTime.now())
-        val charName = userPrefs.getBlendCharacterForTime(timeOfDay.name)
-        if (charName.isBlank()) return activeCharacterProfile
-        return characterList.find { it.name == charName } ?: activeCharacterProfile
     }
 
     private fun handleSpotifyRedirect(intent: Intent?) {
