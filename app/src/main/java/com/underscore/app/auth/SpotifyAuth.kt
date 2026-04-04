@@ -74,6 +74,25 @@ class SpotifyAuth(private val context: Context) {
     }
 
     /**
+     * Get a valid access token, refreshing if expired.
+     * Use this instead of getAccessToken() for background API calls.
+     */
+    suspend fun getValidAccessToken(): String? {
+        val token = prefs.getString(KEY_ACCESS_TOKEN, null) ?: return null
+        val expiry = prefs.getLong(KEY_TOKEN_EXPIRY, 0)
+        // If token is still valid (with 60s buffer), return it
+        if (System.currentTimeMillis() < expiry - 60_000) return token
+        // Token expired or about to expire — try refresh
+        Log.d(TAG, "Token expired or expiring soon, attempting refresh...")
+        return if (refreshAccessToken()) {
+            prefs.getString(KEY_ACCESS_TOKEN, null)
+        } else {
+            Log.w(TAG, "Token refresh failed, returning expired token as last resort")
+            token
+        }
+    }
+
+    /**
      * Start Spotify auth via browser using Authorization Code + PKCE flow.
      * No client_secret needed — the code_verifier proves we're the same app.
      */

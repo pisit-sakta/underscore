@@ -366,7 +366,7 @@ class UnderscoreService : LifecycleService() {
 
         // Build Spotify API for character/franchise mode (soundtrack search)
         val spotifyApi = if (characterProfile != null || franchiseProfile != null) {
-            val token = SpotifyAuth(this).getAccessToken()
+            val token = SpotifyAuth(this).getValidAccessToken()
             if (token != null) SpotifyWebApi(token) else null
         } else null
 
@@ -475,7 +475,7 @@ class UnderscoreService : LifecycleService() {
 
     private suspend fun analyzeLibraryIfNeeded() {
         val spotifyAuth = SpotifyAuth(this)
-        val token = spotifyAuth.getAccessToken()
+        val token = spotifyAuth.getValidAccessToken()
         if (token == null) {
             AppLog.w(TAG, "No Spotify access token — library analysis skipped (user not logged in or token expired)")
             _libraryStatus.value = "No Spotify token"

@@ -47,7 +47,7 @@ fun CharacterSubScreen(
 ) {
     var customName by remember { mutableStateOf("") }
     var localCharacterMode by remember { mutableStateOf(characterModeEnabled) }
-    var localActiveCharacter by remember { mutableStateOf(activeCharacterName) }
+    var localActiveCharacter by remember(activeCharacterName) { mutableStateOf(activeCharacterName) }
 
     Column(
         modifier = Modifier

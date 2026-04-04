@@ -44,7 +44,8 @@ fun FranchiseSubScreen(
 ) {
     var inputText by remember { mutableStateOf("") }
     var localEnabled by remember { mutableStateOf(franchiseEnabled) }
-    var localFranchise by remember { mutableStateOf(activeFranchise) }
+    // Sync with parent state when franchise profile is generated async
+    var localFranchise by remember(activeFranchise) { mutableStateOf(activeFranchise) }
 
     Column(
         modifier = Modifier
@@ -155,7 +156,6 @@ fun FranchiseSubScreen(
                 onClick = {
                     if (inputText.isNotBlank()) {
                         onGenerate(inputText)
-                        inputText = ""
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
