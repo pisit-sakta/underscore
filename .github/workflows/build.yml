@@ -44,8 +44,15 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > /tmp/underscore-release.jks
+
+      - name: Build signed release APK
+        env:
+          KEYSTORE_PATH: /tmp/underscore-release.jks
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: ./gradlew assembleRelease --no-daemon
 
       - name: Get version info
         id: version
@@ -58,8 +65,8 @@ jobs:
 
       - name: Rename APK
         run: |
-          cp app/build/outputs/apk/debug/app-debug.apk \
-             app/build/outputs/apk/debug/underscore-${{ steps.version.outputs.build_num }}.apk
+          cp app/build/outputs/apk/release/app-release.apk \
+             app/build/outputs/apk/release/underscore-${{ steps.version.outputs.build_num }}.apk
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -68,6 +75,6 @@ jobs:
           name: ${{ steps.version.outputs.name }}
           body: |
             Auto-built from commit ${{ github.sha }}
-          files: app/build/outputs/apk/debug/underscore-${{ steps.version.outputs.build_num }}.apk
+          files: app/build/outputs/apk/release/underscore-${{ steps.version.outputs.build_num }}.apk
           prerelease: false
           make_latest: true
