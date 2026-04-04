@@ -69,6 +69,25 @@ class UnderscoreService : LifecycleService() {
         private val _heartRate = MutableStateFlow(0)
         val heartRate: StateFlow<Int> = _heartRate.asStateFlow()
 
+        // Sensor debug data for UI
+        private val _latitude = MutableStateFlow(0.0)
+        val latitude: StateFlow<Double> = _latitude.asStateFlow()
+
+        private val _longitude = MutableStateFlow(0.0)
+        val longitude: StateFlow<Double> = _longitude.asStateFlow()
+
+        private val _speedKmh = MutableStateFlow(0f)
+        val speedKmh: StateFlow<Float> = _speedKmh.asStateFlow()
+
+        private val _motionIntensity = MutableStateFlow("UNKNOWN")
+        val motionIntensity: StateFlow<String> = _motionIntensity.asStateFlow()
+
+        private val _timeOfDay = MutableStateFlow("UNKNOWN")
+        val timeOfDay: StateFlow<String> = _timeOfDay.asStateFlow()
+
+        private val _weather = MutableStateFlow("—")
+        val weather: StateFlow<String> = _weather.asStateFlow()
+
         private val _nowPlayingTitle = MutableStateFlow("")
         val nowPlayingTitle: StateFlow<String> = _nowPlayingTitle.asStateFlow()
 
@@ -214,6 +233,13 @@ class UnderscoreService : LifecycleService() {
                     AppLog.d(TAG, "Scene: $classification (${scene.minutesInScene}min)")
                     _currentScene.value = classification
 
+                    // Publish sensor data to UI
+                    _latitude.value = state.latitude
+                    _longitude.value = state.longitude
+                    _speedKmh.value = state.speedKmh
+                    _motionIntensity.value = state.movementIntensity.name
+                    _timeOfDay.value = state.timeOfDay.name
+
                     // Inject heart rate into scene state
                     val hr = heartRateProvider.getLastBpm()
                     val hrState = heartRateProvider.getLastState()
@@ -241,6 +267,7 @@ class UnderscoreService : LifecycleService() {
                     } else null
 
                     state = state.copy(weather = weather?.condition)
+                    _weather.value = weather?.let { "${it.condition} ${it.temperatureC}°C" } ?: "—"
 
                     // Select song
                     val selection = narrativeEngine.selectSong(

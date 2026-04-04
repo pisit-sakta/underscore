@@ -147,6 +147,12 @@ class MainActivity : ComponentActivity() {
                 val libraryStatus by UnderscoreService.libraryStatus.collectAsState()
                 val placeInfo by UnderscoreService.placeInfo.collectAsState()
                 val heartRate by UnderscoreService.heartRate.collectAsState()
+                val sensorLat by UnderscoreService.latitude.collectAsState()
+                val sensorLng by UnderscoreService.longitude.collectAsState()
+                val sensorSpeed by UnderscoreService.speedKmh.collectAsState()
+                val sensorMotion by UnderscoreService.motionIntensity.collectAsState()
+                val sensorTime by UnderscoreService.timeOfDay.collectAsState()
+                val sensorWeather by UnderscoreService.weather.collectAsState()
 
                 when {
                     !isLoggedIn -> {
@@ -195,7 +201,13 @@ class MainActivity : ComponentActivity() {
                             nowPlaying = nowPlaying,
                             currentScene = currentScene,
                             sensorDebug = SensorDebugInfo(
+                                latitude = sensorLat,
+                                longitude = sensorLng,
+                                speedKmh = sensorSpeed,
+                                movementIntensity = sensorMotion,
+                                timeOfDay = sensorTime,
                                 scene = currentScene.name,
+                                weather = sensorWeather,
                                 placeInfo = placeInfo.ifEmpty { "—" },
                                 heartRate = if (heartRate > 0) "$heartRate bpm" else "—",
                                 matchReason = matchReason,

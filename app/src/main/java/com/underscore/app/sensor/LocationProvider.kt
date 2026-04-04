@@ -37,7 +37,7 @@ class LocationProvider(private val context: Context) {
         5_000L // 5 second interval
     ).apply {
         setMinUpdateIntervalMillis(3_000L)
-        setMinUpdateDistanceMeters(5f)
+        // No minDistance filter — need updates even when stationary for weather/places
     }.build()
 
     fun locationUpdates(): Flow<LocationUpdate> = callbackFlow {
