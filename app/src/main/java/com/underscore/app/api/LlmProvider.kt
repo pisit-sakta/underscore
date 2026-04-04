@@ -17,7 +17,7 @@ enum class LlmProviderType {
     OPENAI_COMPATIBLE;
 
     val displayName: String get() = when (this) {
-        GEMINI -> "Google Gemini 2.5 Flash"
+        GEMINI -> "Google Gemini 3 Flash"
         CLAUDE -> "Anthropic Claude"
         OPENAI_COMPATIBLE -> "Custom (OpenAI-compatible)"
     }
