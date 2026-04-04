@@ -1,5 +1,6 @@
 package com.underscore.app.api
 
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.Dispatchers
@@ -24,7 +25,8 @@ data class ClaudeMessage(
 )
 
 data class ClaudeResponse(
-    val content: List<ClaudeContentBlock>?
+    val content: List<ClaudeContentBlock>?,
+    val error: ClaudeApiError?
 )
 
 data class ClaudeContentBlock(
@@ -32,9 +34,15 @@ data class ClaudeContentBlock(
     val text: String?
 )
 
+data class ClaudeApiError(
+    val type: String?,
+    val message: String?
+)
+
 class ClaudeApi(private val apiKey: String) : LlmProvider {
 
     companion object {
+        private const val TAG = "ClaudeApi"
         const val DEFAULT_API_KEY = "YOUR_ANTHROPIC_API_KEY_HERE"
         private const val BASE_URL = "https://api.anthropic.com/v1/messages"
         private const val MODEL = "claude-haiku-4-5-20251001"
@@ -58,9 +66,12 @@ class ClaudeApi(private val apiKey: String) : LlmProvider {
         maxTokens: Int,
         jsonMode: Boolean
     ): String? = withContext(Dispatchers.IO) {
-        try {
-            if (apiKey == DEFAULT_API_KEY) return@withContext null
+        if (apiKey == DEFAULT_API_KEY || apiKey.isBlank()) {
+            Log.w(TAG, "generate() called with placeholder/empty API key — skipping")
+            return@withContext null
+        }
 
+        try {
             val messages = listOf(
                 ClaudeMessage(role = "user", content = prompt)
             )
@@ -75,6 +86,8 @@ class ClaudeApi(private val apiKey: String) : LlmProvider {
 
             val body = gson.toJson(request).toRequestBody(jsonMediaType)
 
+            Log.d(TAG, "Calling Claude: $MODEL (prompt ${prompt.length} chars)")
+
             val httpRequest = Request.Builder()
                 .url(BASE_URL)
                 .addHeader("x-api-key", apiKey)
@@ -84,13 +97,36 @@ class ClaudeApi(private val apiKey: String) : LlmProvider {
                 .build()
 
             val response = client.newCall(httpRequest).execute()
-            if (!response.isSuccessful) return@withContext null
+            if (!response.isSuccessful) {
+                val errorBody = response.body?.string()?.take(500)
+                Log.e(TAG, "Claude API error ${response.code}: $errorBody")
+                return@withContext null
+            }
 
-            val responseBody = response.body?.string() ?: return@withContext null
+            val responseBody = response.body?.string()
+            if (responseBody == null) {
+                Log.e(TAG, "Claude returned null body")
+                return@withContext null
+            }
+
             val claudeResponse = gson.fromJson(responseBody, ClaudeResponse::class.java)
 
-            claudeResponse.content?.firstOrNull { it.type == "text" }?.text
+            if (claudeResponse.error != null) {
+                Log.e(TAG, "Claude API error: ${claudeResponse.error.type} — ${claudeResponse.error.message}")
+                return@withContext null
+            }
+
+            val text = claudeResponse.content?.firstOrNull { it.type == "text" }?.text
+
+            if (text == null) {
+                Log.w(TAG, "Claude returned no text content. Response: ${responseBody.take(300)}")
+            } else {
+                Log.d(TAG, "Claude response OK (${text.length} chars)")
+            }
+
+            text
         } catch (e: Exception) {
+            Log.e(TAG, "Claude request failed: ${e.message}", e)
             null
         }
     }

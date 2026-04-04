@@ -97,7 +97,11 @@ class LibraryAnalyzer(
             temperature = 0.4f,
             maxTokens = 4096,
             jsonMode = true
-        ) ?: return fallbackTag(tracks, featuresMap)
+        )
+        if (response == null) {
+            Log.w(TAG, "LLM returned null for batch of ${tracks.size} tracks — using audio-feature fallback tags")
+            return fallbackTag(tracks, featuresMap)
+        }
 
         return try {
             val type = object : TypeToken<List<GeminiTagResult>>() {}.type

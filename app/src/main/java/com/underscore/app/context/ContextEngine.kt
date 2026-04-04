@@ -1,5 +1,6 @@
 package com.underscore.app.context
 
+import android.util.Log
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.scan
 import kotlinx.coroutines.flow.map
@@ -15,7 +16,8 @@ data class ClassifiedScene(
 class ContextEngine {
 
     companion object {
-        private const val DEBOUNCE_SECONDS = 15L // Minimum time before accepting a new classification
+        private const val TAG = "ContextEngine"
+        private const val DEBOUNCE_SECONDS = 15L
     }
 
     fun classify(sceneStateFlow: Flow<SceneState>): Flow<ClassifiedScene> {
@@ -40,6 +42,9 @@ class ContextEngine {
                         (isUrgent || secondsInScene >= DEBOUNCE_SECONDS)
 
                 if (shouldSwitch) {
+                    Log.d(TAG, "Scene shift: ${previous.classification} -> $rawClassification" +
+                            " (urgent=$isUrgent, after ${secondsInScene}s)" +
+                            if (state.placeType != null) " @ ${state.placeType}" else "")
                     ClassifiedScene(
                         classification = rawClassification,
                         sceneState = state.copy(

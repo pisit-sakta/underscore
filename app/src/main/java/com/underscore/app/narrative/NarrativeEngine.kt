@@ -118,6 +118,8 @@ class NarrativeEngine(
         val protagonistContext = profileManager?.buildPromptContext() ?: ""
 
         val prompt = Prompts.buildScoringPrompt(sceneDescription, trackSummaries, recentUris.take(5), protagonistContext)
+        Log.d(TAG, "Querying LLM (${llmProvider.name}) with ${candidates.size} candidates for $classification")
+
         val response = llmProvider.generate(
             prompt = prompt,
             systemPrompt = Prompts.SCENE_SCORER,
@@ -125,6 +127,10 @@ class NarrativeEngine(
             maxTokens = 512,
             jsonMode = true
         )
+
+        if (response == null) {
+            Log.w(TAG, "LLM returned null — falling back to local selection")
+        }
 
         if (response != null) {
             try {

@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Looper
+import android.util.Log
 import androidx.core.content.ContextCompat
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationCallback
@@ -24,6 +25,10 @@ data class LocationUpdate(
 
 class LocationProvider(private val context: Context) {
 
+    companion object {
+        private const val TAG = "LocationProvider"
+    }
+
     private val fusedClient: FusedLocationProviderClient =
         LocationServices.getFusedLocationProviderClient(context)
 
@@ -39,9 +44,12 @@ class LocationProvider(private val context: Context) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
             != PackageManager.PERMISSION_GRANTED
         ) {
+            Log.e(TAG, "Location permission NOT granted — location flow will not emit")
             close(SecurityException("Location permission not granted"))
             return@callbackFlow
         }
+
+        Log.d(TAG, "Starting location updates (interval=5s, minDistance=5m)")
 
         val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
@@ -61,6 +69,7 @@ class LocationProvider(private val context: Context) {
         fusedClient.requestLocationUpdates(locationRequest, callback, Looper.getMainLooper())
 
         awaitClose {
+            Log.d(TAG, "Stopping location updates")
             fusedClient.removeLocationUpdates(callback)
         }
     }

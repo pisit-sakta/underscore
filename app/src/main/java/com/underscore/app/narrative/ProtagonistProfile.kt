@@ -2,6 +2,7 @@ package com.underscore.app.narrative
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import com.google.gson.Gson
 
 data class ProtagonistProfile(
@@ -55,6 +56,7 @@ class ProtagonistProfileManager(context: Context) {
             try {
                 gson.fromJson(json, ProtagonistProfile::class.java)
             } catch (e: Exception) {
+                Log.e("ProtagonistProfile", "Failed to parse saved profile, using default: ${e.message}")
                 FOUNDER_PROFILE
             }
         } else {

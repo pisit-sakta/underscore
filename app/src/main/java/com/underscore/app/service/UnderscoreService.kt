@@ -173,17 +173,29 @@ class UnderscoreService : LifecycleService() {
         playbackController.connect()
 
         // Analyze library in background if needed
-        lifecycleScope.launch { analyzeLibraryIfNeeded() }
+        lifecycleScope.launch {
+            try {
+                analyzeLibraryIfNeeded()
+            } catch (e: Exception) {
+                Log.e(TAG, "Library analysis crashed: ${e.message}", e)
+                _libraryStatus.value = "Analysis failed: ${e.message}"
+            }
+        }
 
         // Heart rate monitoring (if available)
         lifecycleScope.launch {
-            heartRateProvider.heartRateUpdates().collect { hr ->
-                _heartRate.value = hr.bpm
+            try {
+                heartRateProvider.heartRateUpdates().collect { hr ->
+                    _heartRate.value = hr.bpm
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Heart rate flow failed: ${e.message}", e)
             }
         }
 
         // Main scoring pipeline
         lifecycleScope.launch {
+            try {
             val sceneStates = sensorAggregator.sceneStateFlow()
             val classifiedScenes = contextEngine.classify(sceneStates)
 
@@ -273,6 +285,10 @@ class UnderscoreService : LifecycleService() {
                     updateNotification(classification, selection.title, state.placeType)
                     lastClassification = classification
                 }
+            } catch (e: Exception) {
+                Log.e(TAG, "SCORING PIPELINE CRASHED: ${e.message}", e)
+                _matchReason.value = "Pipeline error: ${e.message}"
+            }
         }
     }
 
@@ -310,7 +326,12 @@ class UnderscoreService : LifecycleService() {
 
     private suspend fun analyzeLibraryIfNeeded() {
         val spotifyAuth = SpotifyAuth(this)
-        val token = spotifyAuth.getAccessToken() ?: return
+        val token = spotifyAuth.getAccessToken()
+        if (token == null) {
+            Log.w(TAG, "No Spotify access token — library analysis skipped (user not logged in or token expired)")
+            _libraryStatus.value = "No Spotify token"
+            return
+        }
 
         _libraryStatus.value = "Checking library..."
 

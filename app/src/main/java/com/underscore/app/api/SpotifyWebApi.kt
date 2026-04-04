@@ -1,5 +1,6 @@
 package com.underscore.app.api
 
+import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.Dispatchers
@@ -48,11 +49,16 @@ data class AudioFeaturesResponse(
 
 class SpotifyWebApi(private val accessToken: String) {
 
+    companion object {
+        private const val TAG = "SpotifyWebApi"
+    }
+
     private val client = OkHttpClient()
     private val gson = Gson()
     private val baseUrl = "https://api.spotify.com/v1"
 
     suspend fun getSavedTracks(limit: Int = 50, offset: Int = 0): SavedTracksResponse? {
+        Log.d(TAG, "Fetching saved tracks: limit=$limit offset=$offset")
         return get("$baseUrl/me/tracks?limit=$limit&offset=$offset", SavedTracksResponse::class.java)
     }
 
@@ -62,12 +68,18 @@ class SpotifyWebApi(private val accessToken: String) {
         val limit = 50
 
         while (offset < maxTracks) {
-            val response = getSavedTracks(limit, offset) ?: break
+            val response = getSavedTracks(limit, offset)
+            if (response == null) {
+                Log.w(TAG, "getSavedTracks returned null at offset=$offset, stopping pagination")
+                break
+            }
             tracks.addAll(response.items.map { it.track })
+            Log.d(TAG, "Fetched ${tracks.size} tracks so far (total available: ${response.total})")
             if (response.next == null) break
             offset += limit
         }
 
+        Log.d(TAG, "getAllSavedTracks complete: ${tracks.size} tracks")
         return tracks
     }
 
@@ -75,16 +87,19 @@ class SpotifyWebApi(private val accessToken: String) {
         if (trackIds.isEmpty()) return emptyList()
 
         val allFeatures = mutableListOf<AudioFeatures>()
-        // Spotify allows max 100 IDs per request
         trackIds.chunked(100).forEach { chunk ->
             val ids = chunk.joinToString(",")
             val response = get(
                 "$baseUrl/audio-features?ids=$ids",
                 AudioFeaturesResponse::class.java
             )
+            if (response == null) {
+                Log.w(TAG, "getAudioFeatures failed for chunk of ${chunk.size} tracks")
+            }
             response?.audioFeatures?.filterNotNull()?.let { allFeatures.addAll(it) }
         }
 
+        Log.d(TAG, "Got audio features for ${allFeatures.size}/${trackIds.size} tracks")
         return allFeatures
     }
 
@@ -96,11 +111,21 @@ class SpotifyWebApi(private val accessToken: String) {
                 .build()
 
             val response = client.newCall(request).execute()
-            if (!response.isSuccessful) return@withContext null
+            if (!response.isSuccessful) {
+                val errorBody = response.body?.string()?.take(300)
+                Log.e(TAG, "Spotify API ${response.code} for ${url.substringBefore("?")}: $errorBody")
+                return@withContext null
+            }
 
-            val body = response.body?.string() ?: return@withContext null
+            val body = response.body?.string()
+            if (body == null) {
+                Log.e(TAG, "Spotify returned null body for ${url.substringBefore("?")}")
+                return@withContext null
+            }
+
             gson.fromJson(body, clazz)
         } catch (e: Exception) {
+            Log.e(TAG, "Spotify request failed for ${url.substringBefore("?")}: ${e.message}", e)
             null
         }
     }
