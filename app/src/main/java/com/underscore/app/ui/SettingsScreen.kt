@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
@@ -62,6 +63,7 @@ fun SettingsScreen(
     onPlacesKeyChanged: (String) -> Unit,
     onBatterySaverChanged: (Boolean) -> Unit,
     onDeleteAllData: () -> Unit,
+    onShareDebugReport: () -> Unit,
     onBack: () -> Unit
 ) {
     Column(
@@ -190,6 +192,28 @@ fun SettingsScreen(
             }
             Switch(checked = state.batterySaver, onCheckedChange = onBatterySaverChanged)
         }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // ── Troubleshooting ──
+        SectionHeader("TROUBLESHOOTING")
+        OutlinedButton(
+            onClick = onShareDebugReport,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                "SHARE DEBUG REPORT",
+                letterSpacing = 2.sp,
+                fontSize = 12.sp
+            )
+        }
+        Text(
+            text = "Collects device info, app config (no API keys), and recent logs. Share via clipboard, email, GitHub issue, etc.",
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            lineHeight = 14.sp,
+            modifier = Modifier.padding(top = 4.dp)
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
 
