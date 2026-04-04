@@ -14,14 +14,32 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import java.util.concurrent.TimeUnit
 
 data class NowPlaying(
     val trackName: String = "",
     val artistName: String = "",
     val trackUri: String = "",
-    val isPaused: Boolean = true
-)
+    val isPaused: Boolean = true,
+    val durationMs: Long = 0,
+    val progressMs: Long = 0,
+    val timestamp: Long = System.currentTimeMillis()
+) {
+    /** Estimated remaining time in ms, accounting for elapsed time since last poll. */
+    val estimatedRemainingMs: Long
+        get() {
+            if (isPaused || durationMs == 0L) return Long.MAX_VALUE
+            val elapsed = System.currentTimeMillis() - timestamp
+            return maxOf(0, durationMs - progressMs - elapsed)
+        }
+
+    val isTrackLoaded: Boolean get() = trackUri.isNotEmpty() && durationMs > 0
+}
 
 /**
  * Controls Spotify playback via the Web API.
@@ -31,11 +49,6 @@ data class NowPlaying(
  */
 class PlaybackController(private val context: Context) {
 
-    companion object {
-        private const val TAG = "PlaybackController"
-        private const val BASE_URL = "https://api.spotify.com/v1/me/player"
-    }
-
     private val spotifyAuth = SpotifyAuth(context)
     private val scope = CoroutineScope(Dispatchers.IO)
 
@@ -44,19 +57,32 @@ class PlaybackController(private val context: Context) {
         .readTimeout(10, TimeUnit.SECONDS)
         .build()
 
+    private companion object {
+        const val TAG = "PlaybackController"
+        const val BASE_URL = "https://api.spotify.com/v1/me/player"
+        const val POLL_INTERVAL_MS = 5000L          // Poll Spotify every 5s
+        const val TRACK_ENDING_THRESHOLD_MS = 6000L  // "Track ending" when <6s remain
+    }
+
     private val _isConnected = MutableStateFlow(false)
     val isConnected: StateFlow<Boolean> = _isConnected.asStateFlow()
 
     private val _nowPlaying = MutableStateFlow(NowPlaying())
     val nowPlaying: StateFlow<NowPlaying> = _nowPlaying.asStateFlow()
 
+    /** Emits true once when the current track is about to end (< TRACK_ENDING_THRESHOLD_MS remaining). */
+    val trackEndingSoon: Flow<Boolean> = _nowPlaying
+        .map { it.isTrackLoaded && !it.isPaused && it.estimatedRemainingMs < TRACK_ENDING_THRESHOLD_MS }
+        .distinctUntilChanged()
+
+    private var pollingJob: Job? = null
+
     fun connect() {
         val token = spotifyAuth.getAccessToken()
         if (token != null) {
             _isConnected.value = true
             AppLog.d(TAG, "Connected (Web API mode, token available)")
-            // Poll current playback to update now playing
-            scope.launch { pollPlaybackState(token) }
+            startPolling()
         } else {
             _isConnected.value = false
             AppLog.w(TAG, "No access token — not connected")
@@ -65,7 +91,60 @@ class PlaybackController(private val context: Context) {
 
     fun disconnect() {
         _isConnected.value = false
+        pollingJob?.cancel()
+        pollingJob = null
         AppLog.d(TAG, "Disconnected")
+    }
+
+    private fun startPolling() {
+        pollingJob?.cancel()
+        pollingJob = scope.launch {
+            while (true) {
+                try {
+                    fetchPlaybackState()
+                } catch (e: Exception) {
+                    AppLog.e(TAG, "Polling error: ${e.message}")
+                }
+                delay(POLL_INTERVAL_MS)
+            }
+        }
+    }
+
+    private suspend fun fetchPlaybackState() = withContext(Dispatchers.IO) {
+        val token = spotifyAuth.getAccessToken() ?: return@withContext
+        try {
+            val request = Request.Builder()
+                .url(BASE_URL)
+                .addHeader("Authorization", "Bearer $token")
+                .get()
+                .build()
+
+            val response = client.newCall(request).execute()
+            if (response.code == 200) {
+                val body = response.body?.string() ?: return@withContext
+                val progressMs = Regex(""""progress_ms"\s*:\s*(\d+)""").find(body)
+                    ?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+                val durationMs = Regex(""""duration_ms"\s*:\s*(\d+)""").find(body)
+                    ?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+                val isPlaying = Regex(""""is_playing"\s*:\s*(true|false)""").find(body)
+                    ?.groupValues?.get(1)?.toBoolean() ?: false
+                val trackUri = Regex(""""uri"\s*:\s*"(spotify:track:[^"]+)"""").find(body)
+                    ?.groupValues?.get(1) ?: ""
+
+                _nowPlaying.value = _nowPlaying.value.copy(
+                    trackUri = trackUri,
+                    isPaused = !isPlaying,
+                    durationMs = durationMs,
+                    progressMs = progressMs,
+                    timestamp = System.currentTimeMillis()
+                )
+            } else if (response.code == 204) {
+                // No active playback
+                _nowPlaying.value = _nowPlaying.value.copy(isPaused = true)
+            }
+        } catch (e: Exception) {
+            AppLog.e(TAG, "Error fetching playback state: ${e.message}", e)
+        }
     }
 
     fun updateNowPlaying(title: String, artist: String, uri: String) {
@@ -228,25 +307,4 @@ class PlaybackController(private val context: Context) {
             }
         }
 
-    private suspend fun pollPlaybackState(token: String) = withContext(Dispatchers.IO) {
-        try {
-            val request = Request.Builder()
-                .url("$BASE_URL")
-                .addHeader("Authorization", "Bearer $token")
-                .get()
-                .build()
-
-            val response = client.newCall(request).execute()
-            if (response.code == 200) {
-                val body = response.body?.string() ?: return@withContext
-                // Extract track name and artist from the playback state
-                val trackName = Regex(""""name"\s*:\s*"([^"]+)"""").find(body)?.groupValues?.get(1) ?: ""
-                if (trackName.isNotEmpty()) {
-                    AppLog.d(TAG, "Currently playing: $trackName")
-                }
-            }
-        } catch (e: Exception) {
-            AppLog.e(TAG, "Error polling playback: ${e.message}", e)
-        }
-    }
 }

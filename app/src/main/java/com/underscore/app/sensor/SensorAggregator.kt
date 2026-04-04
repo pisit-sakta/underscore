@@ -34,6 +34,13 @@ class SensorAggregator(
     private var lastPlacesLat: Double = 0.0
     private var lastPlacesLng: Double = 0.0
 
+    // Cache latest scene state for on-demand access (used by track-end watcher)
+    @Volatile
+    private var _latestSceneState: SceneState? = null
+
+    /** Returns the most recent scene state snapshot, or null if no data yet. */
+    fun latestSceneState(): SceneState? = _latestSceneState
+
     fun sceneStateFlow(): Flow<SceneState> {
         return combine(
             locationProvider.locationUpdates(),
@@ -47,7 +54,7 @@ class SensorAggregator(
             val places = fetchPlacesIfNeeded(location.latitude, location.longitude)
             val zone = zoneScorer.score(places, timeOfDay)
 
-            SceneState(
+            val state = SceneState(
                 timestamp = Instant.now(),
                 locationType = locationType,
                 speedKmh = speedKmh,
@@ -61,6 +68,8 @@ class SensorAggregator(
                 narrativeFunction = zone.narrativeFunction,
                 nearbyLandmarks = zone.nearbyLandmarks
             )
+            _latestSceneState = state
+            state
         }
     }
 

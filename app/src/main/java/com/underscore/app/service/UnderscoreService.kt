@@ -36,11 +36,14 @@ import com.underscore.app.sensor.HeartRateProvider
 import com.underscore.app.sensor.PlacesProvider
 import com.underscore.app.sensor.SensorAggregator
 import com.underscore.app.sensor.WeatherProvider
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.launch
 
 class UnderscoreService : LifecycleService() {
@@ -122,6 +125,10 @@ class UnderscoreService : LifecycleService() {
     private var lastClassification: SceneClassification? = null
     private var currentSongUri: String? = null
     private var currentHistoryId: Long? = null
+
+    // Play-to-completion: the latest scene awaiting the next song change
+    private val _pendingScene = MutableStateFlow<ClassifiedScene?>(null)
+    private var trackEndJob: Job? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -218,115 +225,188 @@ class UnderscoreService : LifecycleService() {
             }
         }
 
-        // Main scoring pipeline
+        // Main scoring pipeline — PLAY-TO-COMPLETION with urgent interrupt
+        //
+        // Normal scene changes: store as pending, pick next song when current track ends.
+        // Urgent shifts (sprint, sudden departure): interrupt immediately.
+        // First song (nothing playing yet): play immediately.
+
         lifecycleScope.launch {
             try {
-            val sceneStates = sensorAggregator.sceneStateFlow()
-            val classifiedScenes = contextEngine.classify(sceneStates)
+                val sceneStates = sensorAggregator.sceneStateFlow()
+                val classifiedScenes = contextEngine.classify(sceneStates)
 
-            classifiedScenes
-                .distinctUntilChangedBy { it.classification }
-                .collectLatest { scene ->
-                    val classification = scene.classification
-                    var state = scene.sceneState
+                classifiedScenes
+                    .distinctUntilChangedBy { it.classification }
+                    .collectLatest { scene ->
+                        val classification = scene.classification
+                        AppLog.d(TAG, "Scene: $classification (${scene.minutesInScene}min)")
+                        _currentScene.value = classification
 
-                    AppLog.d(TAG, "Scene: $classification (${scene.minutesInScene}min)")
-                    _currentScene.value = classification
+                        // Publish sensor data to UI
+                        _latitude.value = scene.sceneState.latitude
+                        _longitude.value = scene.sceneState.longitude
+                        _speedKmh.value = scene.sceneState.speedKmh
+                        _motionIntensity.value = scene.sceneState.movementIntensity.name
+                        _timeOfDay.value = scene.sceneState.timeOfDay.name
 
-                    // Publish sensor data to UI
-                    _latitude.value = state.latitude
-                    _longitude.value = state.longitude
-                    _speedKmh.value = state.speedKmh
-                    _motionIntensity.value = state.movementIntensity.name
-                    _timeOfDay.value = state.timeOfDay.name
+                        val placeDesc = buildPlaceDescription(scene.sceneState)
+                        if (placeDesc.isNotEmpty()) _placeInfo.value = placeDesc
 
-                    // Inject heart rate into scene state
-                    val hr = heartRateProvider.getLastBpm()
-                    val hrState = heartRateProvider.getLastState()
-                    if (hr > 0) {
-                        state = state.copy(
-                            heartRateBpm = hr,
-                            heartRateState = hrState.name.lowercase()
-                        )
-                    }
+                        // Check if this is an urgent shift that should interrupt playback
+                        val isUrgent = lastClassification?.let { prev ->
+                            isUrgentShift(prev, classification)
+                        } ?: false
 
-                    // Update place info for UI
-                    val placeDesc = buildPlaceDescription(state)
-                    if (placeDesc.isNotEmpty()) _placeInfo.value = placeDesc
+                        // First song (nothing playing) — also treat as immediate
+                        val nothingPlaying = currentSongUri == null
 
-                    // Check known location
-                    val knownLocation = if (state.latitude != 0.0) {
-                        knownLocationManager.checkLocation(
-                            state.latitude, state.longitude, state.placeType
-                        )
-                    } else null
-
-                    // Fetch weather
-                    val weather = if (state.latitude != 0.0) {
-                        weatherProvider.getWeather(state.latitude, state.longitude)
-                    } else null
-
-                    state = state.copy(weather = weather?.condition)
-                    _weather.value = weather?.let { "${it.condition} ${it.temperatureC}°C" } ?: "—"
-
-                    // Select song
-                    val selection = narrativeEngine.selectSong(
-                        sceneState = state,
-                        classification = classification,
-                        weather = weather?.let { "${it.condition} (${it.description}, ${it.temperatureC}°C)" },
-                        knownLocation = knownLocation
-                    )
-
-                    AppLog.d(TAG, "Selected: ${selection.title} by ${selection.artist}")
-                    _matchReason.value = selection.matchReason
-                    currentSongUri = selection.spotifyUri
-
-                    // Update now playing for UI (static StateFlow — survives instance boundaries)
-                    _nowPlayingTitle.value = selection.title
-                    _nowPlayingArtist.value = selection.artist
-
-                    // Log to scene history
-                    val historyEntry = SceneHistoryEntry(
-                        classification = classification.name,
-                        placeType = state.placeType,
-                        zoneCharacter = state.zoneCharacter,
-                        songUri = selection.spotifyUri,
-                        songTitle = selection.title,
-                        songArtist = selection.artist,
-                        matchReason = selection.matchReason,
-                        transitionType = selection.transitionType,
-                        latitude = state.latitude,
-                        longitude = state.longitude,
-                        weather = state.weather,
-                        minutesInScene = scene.minutesInScene
-                    )
-                    currentHistoryId = db.sceneHistoryDao().insert(historyEntry)
-
-                    // Try to develop leitmotifs at known locations
-                    knownLocation?.let {
-                        knownLocationManager.tryDevelopLeitmotif(it.id)
-                    }
-
-                    // Play with transition
-                    when (selection.transitionType) {
-                        "dramatic_silence" -> transitionManager.dramaticSilence(selection.spotifyUri)
-                        else -> {
-                            val isUrgent = selection.transitionType == "urgent"
-                            val shift = lastClassification?.let { prev ->
-                                ContextShift(from = prev, to = classification, isUrgent = isUrgent)
-                            }
-                            transitionManager.transition(selection.spotifyUri, shift)
+                        if (isUrgent || nothingPlaying) {
+                            AppLog.d(TAG, "Immediate song pick: urgent=$isUrgent, first=$nothingPlaying")
+                            selectAndPlay(scene)
+                        } else {
+                            // Normal scene change — just update the pending scene.
+                            // The track-end watcher will pick a new song when the current one finishes.
+                            AppLog.d(TAG, "Scene changed but current song still playing — queued for track end")
+                            _pendingScene.value = scene
                         }
-                    }
 
-                    updateNotification(classification, selection.title, state.placeType)
-                    lastClassification = classification
-                }
+                        lastClassification = classification
+                    }
             } catch (e: Exception) {
                 AppLog.e(TAG, "SCORING PIPELINE CRASHED: ${e.message}", e)
                 _matchReason.value = "Pipeline error: ${e.message}"
             }
         }
+
+        // Track-end watcher: when Spotify reports the current track is about to end,
+        // pick a new song for the current (or pending) scene.
+        trackEndJob?.cancel()
+        trackEndJob = lifecycleScope.launch {
+            try {
+                playbackController.trackEndingSoon
+                    .filter { it } // only react when true (track is ending)
+                    .collect {
+                        val pending = _pendingScene.value
+                        if (pending != null) {
+                            AppLog.d(TAG, "Track ending — picking next song for pending scene: ${pending.classification}")
+                            _pendingScene.value = null
+                            selectAndPlay(pending)
+                        } else {
+                            // No scene change happened, but current track is ending.
+                            // Re-score the CURRENT scene to pick a fresh track.
+                            AppLog.d(TAG, "Track ending — re-scoring current scene for next track")
+                            val currentClassification = _currentScene.value
+                            val freshState = sensorAggregator.latestSceneState()
+                            if (freshState != null) {
+                                val scene = ClassifiedScene(
+                                    classification = currentClassification,
+                                    sceneState = freshState,
+                                    minutesInScene = 0,
+                                    sceneStartedAt = java.time.Instant.now()
+                                )
+                                selectAndPlay(scene)
+                            }
+                        }
+                    }
+            } catch (e: Exception) {
+                AppLog.e(TAG, "Track-end watcher crashed: ${e.message}", e)
+            }
+        }
+    }
+
+    /** Select the best song for a scene and play it. Used by both immediate and queued paths. */
+    private suspend fun selectAndPlay(scene: ClassifiedScene) {
+        val classification = scene.classification
+        var state = scene.sceneState
+
+        // Inject heart rate
+        val hr = heartRateProvider.getLastBpm()
+        val hrState = heartRateProvider.getLastState()
+        if (hr > 0) {
+            state = state.copy(
+                heartRateBpm = hr,
+                heartRateState = hrState.name.lowercase()
+            )
+        }
+
+        // Check known location
+        val knownLocation = if (state.latitude != 0.0) {
+            knownLocationManager.checkLocation(state.latitude, state.longitude, state.placeType)
+        } else null
+
+        // Fetch weather
+        val weather = if (state.latitude != 0.0) {
+            weatherProvider.getWeather(state.latitude, state.longitude)
+        } else null
+
+        state = state.copy(weather = weather?.condition)
+        _weather.value = weather?.let { "${it.condition} ${it.temperatureC}°C" } ?: "—"
+
+        // Select song
+        val selection = narrativeEngine.selectSong(
+            sceneState = state,
+            classification = classification,
+            weather = weather?.let { "${it.condition} (${it.description}, ${it.temperatureC}°C)" },
+            knownLocation = knownLocation
+        )
+
+        AppLog.d(TAG, "Selected: ${selection.title} by ${selection.artist}")
+        _matchReason.value = selection.matchReason
+        currentSongUri = selection.spotifyUri
+
+        // Update now playing for UI
+        _nowPlayingTitle.value = selection.title
+        _nowPlayingArtist.value = selection.artist
+
+        // Log to scene history
+        val historyEntry = SceneHistoryEntry(
+            classification = classification.name,
+            placeType = state.placeType,
+            zoneCharacter = state.zoneCharacter,
+            songUri = selection.spotifyUri,
+            songTitle = selection.title,
+            songArtist = selection.artist,
+            matchReason = selection.matchReason,
+            transitionType = selection.transitionType,
+            latitude = state.latitude,
+            longitude = state.longitude,
+            weather = state.weather,
+            minutesInScene = scene.minutesInScene
+        )
+        currentHistoryId = db.sceneHistoryDao().insert(historyEntry)
+
+        // Try to develop leitmotifs
+        knownLocation?.let { knownLocationManager.tryDevelopLeitmotif(it.id) }
+
+        // Play with transition
+        val isUrgent = lastClassification?.let { prev ->
+            isUrgentShift(prev, classification)
+        } ?: false
+
+        when (selection.transitionType) {
+            "dramatic_silence" -> transitionManager.dramaticSilence(selection.spotifyUri)
+            else -> {
+                val shift = lastClassification?.let { prev ->
+                    ContextShift(from = prev, to = classification, isUrgent = isUrgent)
+                }
+                transitionManager.transition(selection.spotifyUri, shift)
+            }
+        }
+
+        updateNotification(classification, selection.title, state.placeType)
+    }
+
+    private fun isUrgentShift(from: SceneClassification, to: SceneClassification): Boolean {
+        val stationaryTypes = setOf(
+            SceneClassification.MORNING_STATIONARY,
+            SceneClassification.DAYTIME_STATIONARY,
+            SceneClassification.EVENING_STATIONARY,
+            SceneClassification.NIGHT_STATIONARY
+        )
+        if (from in stationaryTypes && to == SceneClassification.TRANSIT) return true
+        if (to == SceneClassification.ACTIVE) return true
+        return false
     }
 
     private fun handleSkip() {
@@ -397,6 +477,7 @@ class UnderscoreService : LifecycleService() {
     override fun onDestroy() {
         super.onDestroy()
         _isRunning.value = false
+        trackEndJob?.cancel()
         playbackController.disconnect()
     }
 
