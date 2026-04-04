@@ -129,8 +129,19 @@ no flag/brand lookalikes. Colors represent the FRANCHISE, not a specific charact
 Return ONLY valid JSON, no markdown fences.
 """.trimIndent()
 
-    suspend fun generateFranchise(input: String): com.underscore.app.data.FranchiseProfile? {
+    data class FranchiseResult(
+        val profile: com.underscore.app.data.FranchiseProfile? = null,
+        val error: String? = null
+    )
+
+    suspend fun generateFranchise(input: String): FranchiseResult {
         AppLog.d(TAG, "Generating franchise profile for: $input")
+
+        if (!llmProvider.isConfigured) {
+            val msg = "LLM provider not configured (${llmProvider.name}). Add your API key in Settings."
+            AppLog.e(TAG, msg)
+            return FranchiseResult(error = msg)
+        }
 
         val prompt = "Generate a franchise profile for: $input"
 
@@ -143,9 +154,12 @@ Return ONLY valid JSON, no markdown fences.
         )
 
         if (response == null) {
-            AppLog.e(TAG, "LLM returned null for franchise: $input")
-            return null
+            val detail = llmProvider.lastError ?: "unknown error"
+            AppLog.e(TAG, "LLM returned null for franchise '$input': $detail")
+            return FranchiseResult(error = "LLM call failed: $detail")
         }
+
+        AppLog.d(TAG, "LLM response for franchise '$input': ${response.take(200)}")
 
         return try {
             // Strip markdown fences if present
@@ -158,10 +172,15 @@ Return ONLY valid JSON, no markdown fences.
                 cleaned = cleaned.substring(0, cleaned.length - 3).trim()
             }
 
-            gson.fromJson(cleaned, com.underscore.app.data.FranchiseProfile::class.java)
+            val profile = gson.fromJson(cleaned, com.underscore.app.data.FranchiseProfile::class.java)
+            if (profile == null || profile.name.isBlank()) {
+                FranchiseResult(error = "LLM returned invalid profile (empty name)")
+            } else {
+                FranchiseResult(profile = profile)
+            }
         } catch (e: Exception) {
             AppLog.e(TAG, "Failed to parse franchise profile: ${e.message}", e)
-            null
+            FranchiseResult(error = "Parse failed: ${e.message}")
         }
     }
 }

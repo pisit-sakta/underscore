@@ -328,21 +328,7 @@ class MainActivity : ComponentActivity() {
                                 isGeneratingCharacter = true
                                 CoroutineScope(Dispatchers.IO).launch {
                                     try {
-                                        val llmProvider = when (userPrefs.llmProvider) {
-                                            com.underscore.app.api.LlmProviderType.GEMINI -> {
-                                                val key = userPrefs.geminiApiKey.ifEmpty { com.underscore.app.api.GeminiApi.DEFAULT_API_KEY }
-                                                com.underscore.app.api.GeminiApi(key)
-                                            }
-                                            com.underscore.app.api.LlmProviderType.CLAUDE -> {
-                                                val key = userPrefs.claudeApiKey.ifEmpty { com.underscore.app.api.ClaudeApi.DEFAULT_API_KEY }
-                                                com.underscore.app.api.ClaudeApi(key)
-                                            }
-                                            else -> {
-                                                val key = userPrefs.geminiApiKey.ifEmpty { com.underscore.app.api.GeminiApi.DEFAULT_API_KEY }
-                                                com.underscore.app.api.GeminiApi(key)
-                                            }
-                                        }
-                                        val generator = CharacterGenerator(llmProvider)
+                                        val generator = CharacterGenerator(createLlmProvider())
                                         val profile = generator.generate(name)
                                         if (profile != null) {
                                             val validated = ColorHarmonyValidator.validate(profile.color1, profile.color2)
@@ -382,26 +368,13 @@ class MainActivity : ComponentActivity() {
                                 franchiseError = null
                                 CoroutineScope(Dispatchers.Main).launch {
                                     try {
-                                        val profile = withContext(Dispatchers.IO) {
-                                            val llmProvider = when (userPrefs.llmProvider) {
-                                                com.underscore.app.api.LlmProviderType.GEMINI -> {
-                                                    val key = userPrefs.geminiApiKey.ifEmpty { com.underscore.app.api.GeminiApi.DEFAULT_API_KEY }
-                                                    com.underscore.app.api.GeminiApi(key)
-                                                }
-                                                com.underscore.app.api.LlmProviderType.CLAUDE -> {
-                                                    val key = userPrefs.claudeApiKey.ifEmpty { com.underscore.app.api.ClaudeApi.DEFAULT_API_KEY }
-                                                    com.underscore.app.api.ClaudeApi(key)
-                                                }
-                                                else -> {
-                                                    val key = userPrefs.geminiApiKey.ifEmpty { com.underscore.app.api.GeminiApi.DEFAULT_API_KEY }
-                                                    com.underscore.app.api.GeminiApi(key)
-                                                }
-                                            }
-                                            val generator = CharacterGenerator(llmProvider)
+                                        val result = withContext(Dispatchers.IO) {
+                                            val generator = CharacterGenerator(createLlmProvider())
                                             generator.generateFranchise(input)
                                         }
                                         // Back on Main thread — safe to update Compose state
-                                        if (profile != null) {
+                                        if (result.profile != null) {
+                                            val profile = result.profile
                                             val validated = ColorHarmonyValidator.validate(profile.color1, profile.color2)
                                             val finalProfile = if (validated.wasModified) {
                                                 com.underscore.app.debug.AppLog.d("MainActivity",
@@ -413,7 +386,7 @@ class MainActivity : ComponentActivity() {
                                             activeFranchiseProfile = finalProfile
                                             franchiseError = null
                                         } else {
-                                            franchiseError = "Failed to generate franchise profile. Check your LLM provider settings."
+                                            franchiseError = result.error ?: "Unknown error generating franchise profile"
                                         }
                                     } catch (e: Exception) {
                                         com.underscore.app.debug.AppLog.e("MainActivity", "Franchise generation failed: ${e.message}", e)
@@ -532,6 +505,30 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         playbackController.disconnect()
+    }
+
+    private fun createLlmProvider(): com.underscore.app.api.LlmProvider {
+        return when (userPrefs.llmProvider) {
+            com.underscore.app.api.LlmProviderType.GEMINI -> {
+                val key = userPrefs.geminiApiKey.ifEmpty { com.underscore.app.api.GeminiApi.DEFAULT_API_KEY }
+                com.underscore.app.api.GeminiApi(key)
+            }
+            com.underscore.app.api.LlmProviderType.CLAUDE -> {
+                val key = userPrefs.claudeApiKey.ifEmpty { com.underscore.app.api.ClaudeApi.DEFAULT_API_KEY }
+                com.underscore.app.api.ClaudeApi(key)
+            }
+            com.underscore.app.api.LlmProviderType.OPENAI_COMPATIBLE -> {
+                val url = userPrefs.customApiUrl
+                val model = userPrefs.customModel
+                val key = userPrefs.customApiKey
+                if (url.isNotBlank() && model.isNotBlank()) {
+                    com.underscore.app.api.OpenAiCompatibleApi(baseUrl = url, model = model, apiKey = key)
+                } else {
+                    val geminiKey = userPrefs.geminiApiKey.ifEmpty { com.underscore.app.api.GeminiApi.DEFAULT_API_KEY }
+                    com.underscore.app.api.GeminiApi(geminiKey)
+                }
+            }
+        }
     }
 
     private fun startScoring() {
