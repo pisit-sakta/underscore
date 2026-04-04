@@ -40,13 +40,13 @@ data class GeminiCandidate(
 
 class GeminiApi(private val apiKey: String) : LlmProvider {
 
-    override val name: String = "Gemini 3 Flash"
+    override val name: String = "Gemini 2.5 Flash"
 
     companion object {
         private const val TAG = "GeminiApi"
         const val DEFAULT_API_KEY = "YOUR_GEMINI_API_KEY_HERE"
         private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
-        private const val MODEL = "gemini-3.0-flash"
+        private const val MODEL = "gemini-2.5-flash"
     }
 
     private val client = OkHttpClient.Builder()
