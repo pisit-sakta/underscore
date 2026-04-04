@@ -16,6 +16,7 @@ import androidx.core.content.ContextCompat
 import com.underscore.app.auth.SpotifyAuth
 import com.underscore.app.data.SongDatabase
 import com.underscore.app.data.UserPreferences
+import com.underscore.app.debug.LogCollector
 import com.underscore.app.playback.PlaybackController
 import com.underscore.app.service.UnderscoreService
 import com.underscore.app.ui.LoginScreen
@@ -55,6 +56,9 @@ class MainActivity : ComponentActivity() {
 
         requestPermissions()
         checkForUpdate()
+
+        // Handle Spotify auth redirect if we were launched via underscore://spotify-auth-callback
+        handleSpotifyRedirect(intent)
 
         setContent {
             UnderscoreTheme {
@@ -129,6 +133,7 @@ class MainActivity : ComponentActivity() {
                             onPlacesKeyChanged = { userPrefs.placesApiKey = it },
                             onBatterySaverChanged = { userPrefs.batterySaver = it },
                             onDeleteAllData = { deleteAllData() },
+                            onShareDebugReport = { LogCollector(this@MainActivity).reportBug() },
                             onBack = { showSettings = false }
                         )
                     }
@@ -152,6 +157,22 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 }
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleSpotifyRedirect(intent)
+    }
+
+    private fun handleSpotifyRedirect(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (uri.scheme == "underscore" && uri.host == "spotify-auth-callback") {
+            val success = spotifyAuth.handleRedirectUri(uri)
+            if (success) {
+                playbackController.connect()
+                recreate()
             }
         }
     }
