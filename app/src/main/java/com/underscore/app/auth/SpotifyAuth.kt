@@ -36,8 +36,9 @@ class SpotifyAuth(private val context: Context) {
         private const val TOKEN_URL = "https://accounts.spotify.com/api/token"
 
         private val SCOPES = listOf(
-            "app-remote-control",
             "user-library-read",
+            "user-modify-playback-state",
+            "user-read-playback-state",
             "playlist-read-private",
             "playlist-read-collaborative"
         )
