@@ -30,6 +30,7 @@ import com.underscore.app.data.PresetCharacters
 import com.underscore.app.data.SongDatabase
 import com.underscore.app.data.UserPreferences
 import com.underscore.app.narrative.CharacterGenerator
+import com.underscore.app.ui.ColorHarmonyValidator
 import com.underscore.app.debug.LogCollector
 import com.underscore.app.playback.NowPlaying
 import com.underscore.app.playback.PlaybackController
@@ -327,10 +328,18 @@ class MainActivity : ComponentActivity() {
                                         val generator = CharacterGenerator(llmProvider)
                                         val profile = generator.generate(name)
                                         if (profile != null) {
-                                            db.characterProfileDao().insert(profile)
+                                            // Validate LLM-generated colors for harmony
+                                            val validated = ColorHarmonyValidator.validate(profile.color1, profile.color2)
+                                            val finalProfile = if (validated.wasModified) {
+                                                com.underscore.app.debug.AppLog.d("MainActivity",
+                                                    "Color harmony corrected for ${profile.name}: " +
+                                                    "${profile.color1}/${profile.color2} -> ${validated.color1}/${validated.color2}")
+                                                profile.copy(color1 = validated.color1, color2 = validated.color2)
+                                            } else profile
+                                            db.characterProfileDao().insert(finalProfile)
                                             characterList = db.characterProfileDao().getAll()
-                                            userPrefs.activeCharacterName = profile.name
-                                            activeCharacterProfile = profile
+                                            userPrefs.activeCharacterName = finalProfile.name
+                                            activeCharacterProfile = finalProfile
                                         }
                                     } catch (e: Exception) {
                                         com.underscore.app.debug.AppLog.e("MainActivity", "Character generation failed: ${e.message}", e)

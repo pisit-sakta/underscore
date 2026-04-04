@@ -583,21 +583,13 @@ private fun BlendSlotRow(
                 if (currentChar.isNotBlank()) {
                     val char = characters.find { it.name == currentChar }
                     if (char != null) {
-                        androidx.compose.foundation.Canvas(
+                        MiniDiagonalSplit(
+                            color1 = parseHexColor(char.color1),
+                            color2 = parseHexColor(char.color2),
                             modifier = Modifier
                                 .height(12.dp)
                                 .width(12.dp)
-                                .clip(RoundedCornerShape(2.dp))
-                        ) {
-                            drawRect(parseHexColor(char.color1))
-                            val halfPath = androidx.compose.ui.graphics.Path().apply {
-                                moveTo(size.width, 0f)
-                                lineTo(size.width, size.height)
-                                lineTo(0f, size.height)
-                                close()
-                            }
-                            drawPath(halfPath, parseHexColor(char.color2))
-                        }
+                        )
                         Spacer(modifier = Modifier.width(4.dp))
                     }
                 }
@@ -694,24 +686,15 @@ private fun CharacterModeSection(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Color preview boxes
-                        androidx.compose.foundation.Canvas(
+                        // Color preview
+                        MiniDiagonalSplit(
+                            color1 = parseHexColor(activeChar.color1),
+                            color2 = parseHexColor(activeChar.color2),
                             modifier = Modifier
                                 .height(24.dp)
                                 .width(48.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                        ) {
-                            val w = size.width
-                            val h = size.height
-                            val path1 = androidx.compose.ui.graphics.Path().apply {
-                                moveTo(0f, 0f); lineTo(w, 0f); lineTo(0f, h); close()
-                            }
-                            val path2 = androidx.compose.ui.graphics.Path().apply {
-                                moveTo(w, 0f); lineTo(w, h); lineTo(0f, h); close()
-                            }
-                            drawPath(path1, parseHexColor(activeChar.color1))
-                            drawPath(path2, parseHexColor(activeChar.color2))
-                        }
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
@@ -757,21 +740,13 @@ private fun CharacterModeSection(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Mini color preview
-                    androidx.compose.foundation.Canvas(
+                    MiniDiagonalSplit(
+                        color1 = parseHexColor(character.color1),
+                        color2 = parseHexColor(character.color2),
                         modifier = Modifier
                             .height(16.dp)
                             .width(16.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                    ) {
-                        drawRect(parseHexColor(character.color1))
-                        val halfPath = androidx.compose.ui.graphics.Path().apply {
-                            moveTo(size.width, 0f)
-                            lineTo(size.width, size.height)
-                            lineTo(0f, size.height)
-                            close()
-                        }
-                        drawPath(halfPath, parseHexColor(character.color2))
-                    }
+                    )
                     Spacer(modifier = Modifier.width(8.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
