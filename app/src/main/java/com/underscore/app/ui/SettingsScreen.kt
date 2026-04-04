@@ -169,9 +169,17 @@ fun SettingsScreen(
 
         // ── Sensor API Keys ──
         SectionHeader("SENSOR API KEYS")
-        ApiKeyField("OpenWeatherMap Key", state.weatherKey, onWeatherKeyChanged)
+        HintText("These power the World Layer — location awareness and weather context. Without them, scoring still works but won't know WHERE you are.")
+
         Spacer(modifier = Modifier.height(8.dp))
+
         ApiKeyField("Google Places Key", state.placesKey, onPlacesKeyChanged)
+        HintText("Powers location/zone scoring. Get one at console.cloud.google.com (Places API). Optional but highly recommended.")
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        ApiKeyField("OpenWeatherMap Key", state.weatherKey, onWeatherKeyChanged)
+        HintText("Adds weather context (rain, temperature). Get one at openweathermap.org/api. Optional.")
 
         Spacer(modifier = Modifier.height(24.dp))
 

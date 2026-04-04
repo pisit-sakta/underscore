@@ -123,7 +123,14 @@ class MainActivity : ComponentActivity() {
                                 placesKey = userPrefs.placesApiKey,
                                 batterySaver = userPrefs.batterySaver
                             ),
-                            onProviderChanged = { userPrefs.llmProvider = it },
+                            onProviderChanged = {
+                                userPrefs.llmProvider = it
+                                // Restart service so it picks up the new provider
+                                if (UnderscoreService.isRunning.value) {
+                                    stopScoring()
+                                    startScoring()
+                                }
+                            },
                             onGeminiKeyChanged = { userPrefs.geminiApiKey = it },
                             onClaudeKeyChanged = { userPrefs.claudeApiKey = it },
                             onCustomApiUrlChanged = { userPrefs.customApiUrl = it },
