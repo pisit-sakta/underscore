@@ -66,6 +66,10 @@ fun SettingsScreen(
     onShareDebugReport: () -> Unit,
     onBack: () -> Unit
 ) {
+    // Local mutable state so UI updates immediately on change
+    var selectedProvider by remember { mutableStateOf(state.provider) }
+    var savedToast by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -110,8 +114,11 @@ fun SettingsScreen(
         LlmProviderType.entries.forEach { provider ->
             ProviderOption(
                 provider = provider,
-                isSelected = state.provider == provider,
-                onSelect = { onProviderChanged(provider) }
+                isSelected = selectedProvider == provider,
+                onSelect = {
+                    selectedProvider = provider
+                    onProviderChanged(provider)
+                }
             )
             Spacer(modifier = Modifier.height(8.dp))
         }
@@ -119,7 +126,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // ── Provider-specific config ──
-        when (state.provider) {
+        when (selectedProvider) {
             LlmProviderType.GEMINI -> {
                 SectionHeader("GEMINI CONFIG")
                 ApiKeyField("Google AI API Key", state.geminiKey, onGeminiKeyChanged)
@@ -222,6 +229,31 @@ fun SettingsScreen(
             ),
             note = "Free tier: 1,000 calls/day. Underscore uses ~1 per 10 minutes. Optional — adds rain/temperature context."
         )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // ── Save Button ──
+        Button(
+            onClick = { savedToast = true },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A))
+        ) {
+            Text(
+                if (savedToast) "SAVED" else "SAVE SETTINGS",
+                letterSpacing = 2.sp,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+        if (savedToast) {
+            Text(
+                text = "All settings are saved automatically. This button is for your peace of mind.",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 14.sp,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 

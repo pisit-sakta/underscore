@@ -44,12 +44,37 @@ class LocationProvider(private val context: Context) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
             != PackageManager.PERMISSION_GRANTED
         ) {
-            Log.e(TAG, "Location permission NOT granted — location flow will not emit")
-            close(SecurityException("Location permission not granted"))
+            Log.e(TAG, "Location permission NOT granted — emitting default and waiting")
+            // Don't crash the flow — emit a zero location so the pipeline can still run
+            trySend(LocationUpdate(0.0, 0.0, 0f, 0f))
+            awaitClose { }
             return@callbackFlow
         }
 
         Log.d(TAG, "Starting location updates (interval=5s, minDistance=5m)")
+
+        // Emit last known location immediately so combine() doesn't block
+        try {
+            fusedClient.lastLocation.addOnSuccessListener { location ->
+                if (location != null) {
+                    Log.d(TAG, "Last known location: ${location.latitude}, ${location.longitude}")
+                    trySend(
+                        LocationUpdate(
+                            latitude = location.latitude,
+                            longitude = location.longitude,
+                            speedMps = if (location.hasSpeed()) location.speed else 0f,
+                            accuracy = location.accuracy
+                        )
+                    )
+                } else {
+                    Log.d(TAG, "No last known location, emitting default")
+                    trySend(LocationUpdate(0.0, 0.0, 0f, 0f))
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to get last location: ${e.message}")
+            trySend(LocationUpdate(0.0, 0.0, 0f, 0f))
+        }
 
         val callback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
