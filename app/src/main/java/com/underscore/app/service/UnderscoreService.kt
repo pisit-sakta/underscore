@@ -475,35 +475,50 @@ class UnderscoreService : LifecycleService() {
 
     private suspend fun analyzeLibraryIfNeeded() {
         val spotifyAuth = SpotifyAuth(this)
-        val token = spotifyAuth.getValidAccessToken()
-        if (token == null) {
-            AppLog.w(TAG, "No Spotify access token — library analysis skipped (user not logged in or token expired)")
-            _libraryStatus.value = "Spotify token expired — disconnect and reconnect"
+        val maxAttempts = 3
+
+        for (attempt in 1..maxAttempts) {
+            val token = spotifyAuth.getValidAccessToken()
+            if (token == null) {
+                AppLog.w(TAG, "No Spotify access token — library analysis skipped (user not logged in or token expired)")
+                _libraryStatus.value = "Spotify token expired — disconnect and reconnect"
+                return
+            }
+
+            _libraryStatus.value = if (attempt == 1) "Fetching library..." else "Retrying library fetch (attempt $attempt/$maxAttempts)..."
+
+            val spotifyApi = SpotifyWebApi(token)
+            val llmProvider = createLlmProvider()
+            val analyzer = LibraryAnalyzer(spotifyApi, llmProvider, db)
+
+            val result = analyzer.analyzeLibrary(
+                onFetchProgress = { fetched, total ->
+                    _libraryStatus.value = if (total > 0) "Fetching library: $fetched / $total" else "Fetching library: $fetched songs"
+                },
+                onProgress = { analyzed, total ->
+                    _libraryStatus.value = "Analyzing: $analyzed / $total"
+                }
+            )
+
+            // If rate limited with no songs, retry after a cooldown
+            val isRateLimited = result.taggedCount == 0 && result.apiError?.contains("Rate limited") == true
+            if (isRateLimited && attempt < maxAttempts) {
+                val waitSeconds = 60L * attempt
+                AppLog.w(TAG, "Rate limited on attempt $attempt, retrying in ${waitSeconds}s")
+                _libraryStatus.value = "Rate limited — retrying in ${waitSeconds}s..."
+                delay(waitSeconds * 1000)
+                continue
+            }
+
+            val suffix = when {
+                result.spotifyFetchedCount == 0 && result.apiError != null -> " — ${result.apiError}"
+                result.spotifyFetchedCount == 0 -> " — could not fetch library"
+                !llmProvider.isConfigured -> " (basic tags — no API key)"
+                else -> ""
+            }
+            _libraryStatus.value = "${result.taggedCount} songs ready$suffix"
             return
         }
-
-        _libraryStatus.value = "Fetching library..."
-
-        val spotifyApi = SpotifyWebApi(token)
-        val llmProvider = createLlmProvider()
-        val analyzer = LibraryAnalyzer(spotifyApi, llmProvider, db)
-
-        val result = analyzer.analyzeLibrary(
-            onFetchProgress = { fetched, total ->
-                _libraryStatus.value = if (total > 0) "Fetching library: $fetched / $total" else "Fetching library: $fetched songs"
-            },
-            onProgress = { analyzed, total ->
-                _libraryStatus.value = "Analyzing: $analyzed / $total"
-            }
-        )
-
-        val suffix = when {
-            result.spotifyFetchedCount == 0 && result.apiError != null -> " — ${result.apiError}"
-            result.spotifyFetchedCount == 0 -> " — could not fetch library"
-            !llmProvider.isConfigured -> " (basic tags — no API key)"
-            else -> ""
-        }
-        _libraryStatus.value = "${result.taggedCount} songs ready$suffix"
     }
 
     private fun stopScoring() {

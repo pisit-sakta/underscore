@@ -92,7 +92,7 @@ class SpotifyWebApi(private val accessToken: String) {
             Log.d(TAG, "Fetched ${tracks.size}/${response.total} tracks")
             if (response.next == null) break
             offset += limit
-            delay(100)
+            delay(400)
         }
 
         Log.d(TAG, "getAllSavedTracks complete: ${tracks.size} tracks")
@@ -192,7 +192,7 @@ class SpotifyWebApi(private val accessToken: String) {
                 addUnique(response.items ?: emptyList())
                 if (response.next == null) break
                 offset += 50
-                delay(200)
+                delay(400)
             }
         }
         Log.d(TAG, "After top tracks: ${tracks.size} unique")
@@ -217,7 +217,7 @@ class SpotifyWebApi(private val accessToken: String) {
             addUnique(response.items?.mapNotNull { it.track } ?: emptyList())
             if (response.next == null) break
             savedOffset += 50
-            delay(200)
+            delay(400)
         }
         Log.d(TAG, "After liked songs: ${tracks.size} unique")
 
@@ -229,7 +229,7 @@ class SpotifyWebApi(private val accessToken: String) {
             allPlaylists.addAll(plResponse.items?.filter { it.id.isNotBlank() } ?: emptyList())
             if (plResponse.next == null) break
             plOffset += 50
-            delay(200)
+            delay(400)
         }
         Log.d(TAG, "Found ${allPlaylists.size} playlists")
         estimatedTotal += allPlaylists.sumOf { it.tracks?.total ?: 0 }
@@ -242,7 +242,7 @@ class SpotifyWebApi(private val accessToken: String) {
                 addUnique(ptResponse.items?.mapNotNull { it.track } ?: emptyList())
                 if (ptResponse.next == null) break
                 offset += 50
-                delay(200)
+                delay(400)
             }
         }
         Log.d(TAG, "After playlists: ${tracks.size} unique")
@@ -284,17 +284,17 @@ class SpotifyWebApi(private val accessToken: String) {
                 Log.w(TAG, "getAudioFeatures failed for chunk of ${chunk.size} tracks")
             }
             response?.audioFeatures?.filterNotNull()?.let { allFeatures.addAll(it) }
-            if (index < trackIds.chunked(100).size - 1) delay(100)
+            if (index < trackIds.chunked(100).size - 1) delay(400)
         }
 
         Log.d(TAG, "Got audio features for ${allFeatures.size}/${trackIds.size} tracks")
         return allFeatures
     }
 
-    /** Count of consecutive 429 errors — used to abort early if rate limited */
-    private var consecutive429s = 0
-
     private suspend fun <T> get(url: String, clazz: Class<T>): T? = withContext(Dispatchers.IO) {
+        val maxRetries = 5
+        var attempt = 0
+
         try {
             totalApiCalls++
             lastCallEndpoint = url.substringBefore("?").substringAfter("/v1")
@@ -304,45 +304,44 @@ class SpotifyWebApi(private val accessToken: String) {
                 .addHeader("Authorization", "Bearer $accessToken")
                 .build()
 
-            var response = client.newCall(request).execute()
+            while (true) {
+                val response = client.newCall(request).execute()
 
-            // Handle rate limiting — wait (capped at 5s) and retry once
-            if (response.code == 429) {
-                rateLimitHits++
-                consecutive429s++
-                if (consecutive429s > 5) {
-                    Log.e(TAG, "Too many rate limits ($consecutive429s), aborting")
+                if (response.code == 429) {
+                    rateLimitHits++
+                    response.close()
+                    if (attempt >= maxRetries) {
+                        Log.e(TAG, "Rate limited after $maxRetries retries, giving up: ${url.substringBefore("?")}")
+                        failedCalls++
+                        if (lastApiError == null) lastApiError = "Rate limited — try again later"
+                        return@withContext null
+                    }
+                    val retryAfter = response.header("Retry-After")?.toLongOrNull()
+                        ?: (1L shl attempt).coerceAtMost(32) // exponential backoff: 1, 2, 4, 8, 16, 32
+                    Log.w(TAG, "Rate limited (attempt ${attempt + 1}/$maxRetries), waiting ${retryAfter}s: ${url.substringBefore("?")}")
+                    delay(retryAfter * 1000)
+                    attempt++
+                    continue
+                }
+
+                if (response.isSuccessful) {
+                    successfulCalls++
+                } else {
                     failedCalls++
-                    if (lastApiError == null) lastApiError = "Rate limited — try again later"
+                    val errorBody = response.body?.string()?.take(300)
+                    Log.e(TAG, "Spotify API HTTP ${response.code} for ${url.substringBefore("?")}: $errorBody")
+                    if (lastApiError == null) lastApiError = "HTTP ${response.code}"
                     return@withContext null
                 }
-                val retryAfter = (response.header("Retry-After")?.toLongOrNull() ?: 2).coerceAtMost(5)
-                Log.w(TAG, "Rate limited ($consecutive429s), waiting ${retryAfter}s: ${url.substringBefore("?")}")
-                response.close()
-                delay(retryAfter * 1000)
-                response = client.newCall(request).execute()
-            }
 
-            if (response.isSuccessful) {
-                consecutive429s = 0
-                successfulCalls++
-            }
+                val body = response.body?.string()
+                if (body == null) {
+                    Log.e(TAG, "Spotify returned null body for ${url.substringBefore("?")}")
+                    return@withContext null
+                }
 
-            if (!response.isSuccessful) {
-                failedCalls++
-                val errorBody = response.body?.string()?.take(300)
-                Log.e(TAG, "Spotify API HTTP ${response.code} for ${url.substringBefore("?")}: $errorBody")
-                if (lastApiError == null) lastApiError = "HTTP ${response.code}"
-                return@withContext null
+                return@withContext gson.fromJson(body, clazz)
             }
-
-            val body = response.body?.string()
-            if (body == null) {
-                Log.e(TAG, "Spotify returned null body for ${url.substringBefore("?")}")
-                return@withContext null
-            }
-
-            gson.fromJson(body, clazz)
         } catch (e: Exception) {
             Log.e(TAG, "Spotify request failed for ${url.substringBefore("?")}: ${e.message}", e)
             null
