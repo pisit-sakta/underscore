@@ -39,13 +39,14 @@ class LibraryAnalyzer(
     )
 
     suspend fun analyzeLibrary(
-        onProgress: (analyzed: Int, total: Int) -> Unit = { _, _ -> }
+        onProgress: (analyzed: Int, total: Int) -> Unit = { _, _ -> },
+        onFetchProgress: (fetchedSoFar: Int) -> Unit = { _ -> }
     ): AnalysisResult {
         // Check how many songs we already have tagged
         val existingCount = db.taggedSongDao().count()
 
         Log.d(TAG, "Fetching all user tracks from Spotify (existing tags: $existingCount)...")
-        val tracks = spotifyApi.getAllUserTracks()
+        val tracks = spotifyApi.getAllUserTracks(onProgress = onFetchProgress)
         if (tracks.isEmpty()) {
             Log.w(TAG, "No tracks found from Spotify")
             return AnalysisResult(existingCount, 0)

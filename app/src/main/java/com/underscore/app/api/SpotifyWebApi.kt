@@ -146,7 +146,9 @@ class SpotifyWebApi(private val accessToken: String) {
      * top tracks (short/medium/long term) + recently played + liked songs + playlists.
      * Deduplicates by track ID.
      */
-    suspend fun getAllUserTracks(): List<SpotifyTrack> {
+    suspend fun getAllUserTracks(
+        onProgress: (fetchedSoFar: Int) -> Unit = {}
+    ): List<SpotifyTrack> {
         val seen = mutableSetOf<String>()
         val tracks = mutableListOf<SpotifyTrack>()
 
@@ -157,6 +159,7 @@ class SpotifyWebApi(private val accessToken: String) {
                     tracks.add(t)
                 }
             }
+            onProgress(tracks.size)
         }
 
         // 1. Top tracks across all time ranges

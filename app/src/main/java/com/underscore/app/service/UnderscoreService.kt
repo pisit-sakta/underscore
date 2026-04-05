@@ -482,22 +482,24 @@ class UnderscoreService : LifecycleService() {
             return
         }
 
-        _libraryStatus.value = "Checking library..."
+        _libraryStatus.value = "Fetching library..."
 
         val spotifyApi = SpotifyWebApi(token)
         val llmProvider = createLlmProvider()
         val analyzer = LibraryAnalyzer(spotifyApi, llmProvider, db)
 
         val result = analyzer.analyzeLibrary(
+            onFetchProgress = { fetched ->
+                _libraryStatus.value = "Fetching library: $fetched songs found"
+            },
             onProgress = { analyzed, total ->
                 _libraryStatus.value = "Analyzing: $analyzed / $total"
             }
         )
 
         val suffix = when {
-            result.spotifyFetchedCount == 0 -> " — could not fetch library (token may be expired)"
+            result.spotifyFetchedCount == 0 -> " — could not fetch library (check Spotify connection)"
             !llmProvider.isConfigured -> " (basic tags — no API key)"
-            result.taggedCount < 20 -> " — add more songs to Spotify"
             else -> ""
         }
         _libraryStatus.value = "${result.taggedCount} songs ready$suffix"
