@@ -496,7 +496,7 @@ class UnderscoreService : LifecycleService() {
 
         val suffix = when {
             !llmProvider.isConfigured -> " (basic tags — no API key)"
-            count < 20 -> " — add more Liked Songs on Spotify"
+            count < 20 -> " — add more songs to Spotify"
             else -> ""
         }
         _libraryStatus.value = "$count songs ready$suffix"
