@@ -488,18 +488,19 @@ class UnderscoreService : LifecycleService() {
         val llmProvider = createLlmProvider()
         val analyzer = LibraryAnalyzer(spotifyApi, llmProvider, db)
 
-        val count = analyzer.analyzeLibrary(
+        val result = analyzer.analyzeLibrary(
             onProgress = { analyzed, total ->
                 _libraryStatus.value = "Analyzing: $analyzed / $total"
             }
         )
 
         val suffix = when {
+            result.spotifyFetchedCount == 0 -> " — could not fetch library (token may be expired)"
             !llmProvider.isConfigured -> " (basic tags — no API key)"
-            count < 20 -> " — add more songs to Spotify"
+            result.taggedCount < 20 -> " — add more songs to Spotify"
             else -> ""
         }
-        _libraryStatus.value = "$count songs ready$suffix"
+        _libraryStatus.value = "${result.taggedCount} songs ready$suffix"
     }
 
     private fun stopScoring() {

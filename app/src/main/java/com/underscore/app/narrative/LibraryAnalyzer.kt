@@ -33,9 +33,14 @@ class LibraryAnalyzer(
 
     private val gson = Gson()
 
+    data class AnalysisResult(
+        val taggedCount: Int,
+        val spotifyFetchedCount: Int
+    )
+
     suspend fun analyzeLibrary(
         onProgress: (analyzed: Int, total: Int) -> Unit = { _, _ -> }
-    ): Int {
+    ): AnalysisResult {
         // Check how many songs we already have tagged
         val existingCount = db.taggedSongDao().count()
 
@@ -43,7 +48,7 @@ class LibraryAnalyzer(
         val tracks = spotifyApi.getAllUserTracks()
         if (tracks.isEmpty()) {
             Log.w(TAG, "No tracks found from Spotify")
-            return existingCount
+            return AnalysisResult(existingCount, 0)
         }
         Log.d(TAG, "Found ${tracks.size} unique tracks from Spotify")
 
@@ -52,7 +57,7 @@ class LibraryAnalyzer(
         val newTracks = tracks.filter { it.uri !in existingUris }
         if (newTracks.isEmpty()) {
             Log.d(TAG, "All ${tracks.size} tracks already tagged. Skipping.")
-            return existingCount
+            return AnalysisResult(existingCount, tracks.size)
         }
         Log.d(TAG, "${newTracks.size} new tracks to analyze (${existingUris.size} already tagged)")
 
@@ -77,7 +82,7 @@ class LibraryAnalyzer(
 
         val totalCount = existingCount + analyzed
         Log.d(TAG, "Library analysis complete: $analyzed new songs tagged ($totalCount total)")
-        return totalCount
+        return AnalysisResult(totalCount, tracks.size)
     }
 
     private suspend fun tagBatch(
