@@ -4,6 +4,7 @@ import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -81,6 +82,7 @@ class SpotifyWebApi(private val accessToken: String) {
             Log.d(TAG, "Fetched ${tracks.size}/${response.total} tracks")
             if (response.next == null) break
             offset += limit
+            delay(100)
         }
 
         Log.d(TAG, "getAllSavedTracks complete: ${tracks.size} tracks")
@@ -174,6 +176,7 @@ class SpotifyWebApi(private val accessToken: String) {
                 addUnique(response.items)
                 if (response.next == null) break
                 offset += 50
+                delay(100)
             }
         }
         Log.d(TAG, "After top tracks: ${tracks.size} unique")
@@ -198,6 +201,7 @@ class SpotifyWebApi(private val accessToken: String) {
             allPlaylists.addAll(plResponse.items)
             if (plResponse.next == null) break
             plOffset += 50
+            delay(100)
         }
         Log.d(TAG, "Found ${allPlaylists.size} playlists")
 
@@ -208,6 +212,7 @@ class SpotifyWebApi(private val accessToken: String) {
                 addUnique(ptResponse.items.mapNotNull { it.track })
                 if (ptResponse.next == null) break
                 offset += 50
+                delay(100)
             }
         }
         Log.d(TAG, "After playlists: ${tracks.size} unique")
@@ -239,7 +244,7 @@ class SpotifyWebApi(private val accessToken: String) {
         if (trackIds.isEmpty()) return emptyList()
 
         val allFeatures = mutableListOf<AudioFeatures>()
-        trackIds.chunked(100).forEach { chunk ->
+        trackIds.chunked(100).forEachIndexed { index, chunk ->
             val ids = chunk.joinToString(",")
             val response = get(
                 "$baseUrl/audio-features?ids=$ids",
@@ -249,6 +254,7 @@ class SpotifyWebApi(private val accessToken: String) {
                 Log.w(TAG, "getAudioFeatures failed for chunk of ${chunk.size} tracks")
             }
             response?.audioFeatures?.filterNotNull()?.let { allFeatures.addAll(it) }
+            if (index < trackIds.chunked(100).size - 1) delay(100)
         }
 
         Log.d(TAG, "Got audio features for ${allFeatures.size}/${trackIds.size} tracks")
@@ -262,12 +268,21 @@ class SpotifyWebApi(private val accessToken: String) {
                 .addHeader("Authorization", "Bearer $accessToken")
                 .build()
 
-            val response = client.newCall(request).execute()
+            var response = client.newCall(request).execute()
+
+            // Handle rate limiting — wait and retry once
+            if (response.code == 429) {
+                val retryAfter = response.header("Retry-After")?.toLongOrNull() ?: 2
+                Log.w(TAG, "Rate limited, waiting ${retryAfter}s before retry: ${url.substringBefore("?")}")
+                response.close()
+                delay(retryAfter * 1000)
+                response = client.newCall(request).execute()
+            }
+
             if (!response.isSuccessful) {
                 val errorBody = response.body?.string()?.take(300)
-                val msg = "HTTP ${response.code} for ${url.substringBefore("?")}"
-                Log.e(TAG, "Spotify API $msg: $errorBody")
-                if (lastApiError == null) lastApiError = msg
+                Log.e(TAG, "Spotify API HTTP ${response.code} for ${url.substringBefore("?")}: $errorBody")
+                if (lastApiError == null) lastApiError = "HTTP ${response.code}"
                 return@withContext null
             }
 
