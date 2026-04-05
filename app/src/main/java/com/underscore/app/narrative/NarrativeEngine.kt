@@ -196,6 +196,24 @@ class NarrativeEngine(
                 }
             } catch (e: Exception) {
                 AppLog.e(TAG, "Failed to parse LLM selection: ${e.message}. Raw response: ${cleaned.take(300)}", e)
+                // Try to salvage spotify_uri from truncated JSON
+                val uriMatch = Regex(""""spotify_uri"\s*:\s*"(spotify:track:[a-zA-Z0-9]+)"""").find(cleaned)
+                if (uriMatch != null) {
+                    val uri = uriMatch.groupValues[1]
+                    val matched = candidates.find { it.spotifyUri == uri }
+                    if (matched != null) {
+                        AppLog.d(TAG, "Salvaged spotify_uri from truncated response: $uri")
+                        db.taggedSongDao().recordPlay(uri)
+                        return SongSelection(
+                            spotifyUri = uri,
+                            title = matched.title,
+                            artist = matched.artist,
+                            matchReason = "LLM selection (partial parse)",
+                            transitionType = "normal",
+                            transitionDurationMs = 3000
+                        )
+                    }
+                }
             }
         }
 
