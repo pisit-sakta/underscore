@@ -32,6 +32,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.underscore.app.api.KeyCheckResult
+import com.underscore.app.api.KeyValidator
 import com.underscore.app.api.LlmProviderType
 import com.underscore.app.data.CharacterProfile
 import kotlinx.coroutines.launch
@@ -243,6 +244,63 @@ private sealed class CheckState {
     object Checking : CheckState()
     object Valid : CheckState()
     data class Failed(val reason: String) : CheckState()
+}
+
+@Composable
+fun EndpointCheckButton(url: String, model: String, apiKey: String) {
+    val scope = rememberCoroutineScope()
+    var checkState by remember { mutableStateOf<CheckState>(CheckState.Idle) }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Button(
+            onClick = {
+                checkState = CheckState.Checking
+                scope.launch {
+                    checkState = try {
+                        when (val result = KeyValidator.checkOpenAiCompatible(url, model, apiKey)) {
+                            is KeyCheckResult.Valid -> CheckState.Valid
+                            is KeyCheckResult.Invalid -> CheckState.Failed(result.reason)
+                            is KeyCheckResult.Error -> CheckState.Failed(result.message)
+                        }
+                    } catch (e: Exception) {
+                        CheckState.Failed(e.message ?: "Check failed")
+                    }
+                }
+            },
+            enabled = url.isNotBlank() && model.isNotBlank() && checkState != CheckState.Checking,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            ),
+            shape = RoundedCornerShape(8.dp)
+        ) {
+            Text(
+                if (checkState == CheckState.Checking) "TESTING..." else "TEST CONNECTION",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 1.sp
+            )
+        }
+        when (val state = checkState) {
+            is CheckState.Valid -> Text(
+                "Connected",
+                fontSize = 11.sp,
+                color = Color(0xFF16A34A),
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(start = 12.dp)
+            )
+            is CheckState.Failed -> Text(
+                state.reason,
+                fontSize = 11.sp,
+                color = Color(0xFFDC2626),
+                modifier = Modifier.padding(start = 12.dp)
+            )
+            else -> {}
+        }
+    }
 }
 
 @Composable

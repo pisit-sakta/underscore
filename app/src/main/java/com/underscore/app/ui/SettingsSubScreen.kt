@@ -155,13 +155,20 @@ fun SettingsSubScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                ApiKeyFieldWithCheck(
+                ApiKeyField(
                     label = "API Key",
                     value = state.customApiKey,
-                    onValueChange = onCustomApiKeyChanged,
-                    onCheck = { KeyValidator.checkOpenAiCompatible(state.customApiUrl, state.customModel, it) }
+                    onValueChange = onCustomApiKeyChanged
                 )
                 HintText("Leave empty for local LLMs that don't require auth.")
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                EndpointCheckButton(
+                    url = state.customApiUrl,
+                    model = state.customModel,
+                    apiKey = state.customApiKey
+                )
             }
         }
 
