@@ -176,7 +176,7 @@ class SpotifyWebApi(private val accessToken: String) {
                 addUnique(response.items)
                 if (response.next == null) break
                 offset += 50
-                delay(100)
+                delay(200)
             }
         }
         Log.d(TAG, "After top tracks: ${tracks.size} unique")
@@ -188,9 +188,15 @@ class SpotifyWebApi(private val accessToken: String) {
         }
         Log.d(TAG, "After recently played: ${tracks.size} unique")
 
-        // 3. Liked songs
-        val saved = getAllSavedTracks()
-        addUnique(saved)
+        // 3. Liked songs (inline pagination so progress updates per page)
+        var savedOffset = 0
+        while (true) {
+            val response = getSavedTracks(50, savedOffset) ?: break
+            addUnique(response.items.map { it.track })
+            if (response.next == null) break
+            savedOffset += 50
+            delay(200)
+        }
         Log.d(TAG, "After liked songs: ${tracks.size} unique")
 
         // 4. User's playlists — ALL playlists, ALL tracks
@@ -201,7 +207,7 @@ class SpotifyWebApi(private val accessToken: String) {
             allPlaylists.addAll(plResponse.items)
             if (plResponse.next == null) break
             plOffset += 50
-            delay(100)
+            delay(200)
         }
         Log.d(TAG, "Found ${allPlaylists.size} playlists")
 
@@ -212,7 +218,7 @@ class SpotifyWebApi(private val accessToken: String) {
                 addUnique(ptResponse.items.mapNotNull { it.track })
                 if (ptResponse.next == null) break
                 offset += 50
-                delay(100)
+                delay(200)
             }
         }
         Log.d(TAG, "After playlists: ${tracks.size} unique")
