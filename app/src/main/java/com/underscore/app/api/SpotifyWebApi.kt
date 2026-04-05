@@ -58,6 +58,15 @@ class SpotifyWebApi(private val accessToken: String) {
     var lastApiError: String? = null
         private set
 
+    // ── API stats for bug reports ──
+    var totalApiCalls = 0; private set
+    var successfulCalls = 0; private set
+    var failedCalls = 0; private set
+    var rateLimitHits = 0; private set
+    var lastCallEndpoint = ""; private set
+
+    fun getApiStats(): String = "total=$totalApiCalls ok=$successfulCalls fail=$failedCalls 429s=$rateLimitHits last=$lastCallEndpoint"
+
     private val client = OkHttpClient()
     private val gson = Gson()
     private val baseUrl = "https://api.spotify.com/v1"
@@ -286,6 +295,9 @@ class SpotifyWebApi(private val accessToken: String) {
 
     private suspend fun <T> get(url: String, clazz: Class<T>): T? = withContext(Dispatchers.IO) {
         try {
+            totalApiCalls++
+            lastCallEndpoint = url.substringBefore("?").substringAfter("/v1")
+
             val request = Request.Builder()
                 .url(url)
                 .addHeader("Authorization", "Bearer $accessToken")
@@ -295,9 +307,11 @@ class SpotifyWebApi(private val accessToken: String) {
 
             // Handle rate limiting — wait (capped at 5s) and retry once
             if (response.code == 429) {
+                rateLimitHits++
                 consecutive429s++
                 if (consecutive429s > 5) {
                     Log.e(TAG, "Too many rate limits ($consecutive429s), aborting")
+                    failedCalls++
                     if (lastApiError == null) lastApiError = "Rate limited — try again later"
                     return@withContext null
                 }
@@ -309,10 +323,12 @@ class SpotifyWebApi(private val accessToken: String) {
             }
 
             if (response.isSuccessful) {
-                consecutive429s = 0 // Reset on success
+                consecutive429s = 0
+                successfulCalls++
             }
 
             if (!response.isSuccessful) {
+                failedCalls++
                 val errorBody = response.body?.string()?.take(300)
                 Log.e(TAG, "Spotify API HTTP ${response.code} for ${url.substringBefore("?")}: $errorBody")
                 if (lastApiError == null) lastApiError = "HTTP ${response.code}"

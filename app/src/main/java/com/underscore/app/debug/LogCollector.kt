@@ -6,6 +6,9 @@ import android.net.Uri
 import android.os.Build
 import android.util.Log
 import android.widget.Toast
+import com.underscore.app.auth.SpotifyAuth
+import com.underscore.app.data.UserPreferences
+import com.underscore.app.service.UnderscoreService
 import com.underscore.app.updater.AppUpdater
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -100,6 +103,7 @@ class LogCollector(private val context: Context) {
     fun collectReport(): String {
         val deviceInfo = buildDeviceInfo()
         val recentLogs = collectLogcat()
+        val errors = AppLog.getErrors()
 
         return buildString {
             appendLine("## Underscore Debug Report")
@@ -115,8 +119,24 @@ class LogCollector(private val context: Context) {
             append(collectAppConfig())
             appendLine("```")
             appendLine()
-            appendLine("### Recent Logs")
-            appendLine("<details><summary>Last $MAX_LINES lines (click to expand)</summary>")
+            appendLine("### State Snapshot")
+            appendLine("```")
+            append(collectStateSnapshot())
+            appendLine("```")
+            appendLine()
+            if (errors.isNotEmpty()) {
+                appendLine("### Errors & Warnings (${errors.size})")
+                appendLine("<details><summary>Click to expand</summary>")
+                appendLine()
+                appendLine("```")
+                appendLine(errors.joinToString("\n"))
+                appendLine("```")
+                appendLine()
+                appendLine("</details>")
+                appendLine()
+            }
+            appendLine("### Recent Logs (last ${AppLog.getLines().size} lines)")
+            appendLine("<details><summary>Click to expand</summary>")
             appendLine()
             appendLine("```")
             appendLine(recentLogs)
@@ -162,6 +182,52 @@ class LogCollector(private val context: Context) {
             appendLine("Weather key: ${if (prefs.getString("weather_api_key", "")?.isNotBlank() == true) "(set)" else "(empty)"}")
             appendLine("Places key: ${if (prefs.getString("places_api_key", "")?.isNotBlank() == true) "(set)" else "(empty)"}")
             appendLine("Battery saver: ${prefs.getBoolean("battery_saver", false)}")
+        }
+    }
+
+    private fun collectStateSnapshot(): String {
+        val userPrefs = UserPreferences(context)
+        return buildString {
+            // Spotify auth state
+            appendLine("── Spotify ──")
+            try {
+                val authPrefs = context.getSharedPreferences("underscore_spotify_prefs",
+                    Context.MODE_PRIVATE) // Will fail for EncryptedSharedPreferences, that's OK
+                appendLine("Token: (encrypted — check auth flow)")
+            } catch (e: Exception) {
+                appendLine("Token prefs: inaccessible (${e.message})")
+            }
+            val spotifyAuth = try { SpotifyAuth(context) } catch (e: Exception) { null }
+            appendLine("Logged in: ${spotifyAuth?.isLoggedIn() ?: "unknown"}")
+            appendLine("Scope version: ${userPrefs.spotifyScopeVersion} (current: ${UserPreferences.CURRENT_SCOPE_VERSION})")
+            appendLine("Needs re-login: ${userPrefs.needsSpotifyRelogin()}")
+
+            // Scoring state
+            appendLine()
+            appendLine("── Scoring ──")
+            appendLine("Running: ${UnderscoreService.isRunning.value}")
+            appendLine("Scene: ${UnderscoreService.currentScene.value}")
+            appendLine("Library: ${UnderscoreService.libraryStatus.value}")
+            appendLine("Now playing: ${UnderscoreService.nowPlayingTitle.value} by ${UnderscoreService.nowPlayingArtist.value}")
+            appendLine("Match reason: ${UnderscoreService.matchReason.value}")
+
+            // Mode state
+            appendLine()
+            appendLine("── Modes ──")
+            appendLine("Character mode: ${userPrefs.characterModeEnabled}")
+            appendLine("Active character: ${userPrefs.activeCharacterName.ifBlank { "(none)" }}")
+            appendLine("Franchise mode: ${userPrefs.franchiseImmersionEnabled}")
+            val franchiseJson = userPrefs.activeFranchiseJson
+            appendLine("Franchise profile: ${if (franchiseJson.isNotBlank()) franchiseJson.take(100) else "(none)"}")
+            appendLine("Custom mood: ${userPrefs.getActiveMood() ?: "(none)"}")
+            appendLine("Drama scale: ${userPrefs.dramaScale}")
+
+            // LLM state
+            appendLine()
+            appendLine("── LLM ──")
+            appendLine("Provider: ${userPrefs.llmProvider}")
+            appendLine("Gemini key: ${if (userPrefs.geminiApiKey.isNotBlank()) "set (${userPrefs.geminiApiKey.length} chars)" else "empty"}")
+            appendLine("Claude key: ${if (userPrefs.claudeApiKey.isNotBlank()) "set" else "empty"}")
         }
     }
 
