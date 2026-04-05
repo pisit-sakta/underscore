@@ -72,14 +72,20 @@ class NarrativeEngine(
         if (characterProfile != null && spotifyApi != null && llmProvider.isConfigured) {
             val result = selectCharacterSong(sceneState, classification, weather, dramaScale, customMood, characterProfile, spotifyApi)
             if (result != null) return result
-            AppLog.w(TAG, "Character mode selection failed, falling back to library")
+            AppLog.w(TAG, "Character mode attempt 1 failed, retrying...")
+            val retry = selectCharacterSong(sceneState, classification, weather, dramaScale, customMood, characterProfile, spotifyApi)
+            if (retry != null) return retry
+            AppLog.w(TAG, "Character mode attempt 2 failed, falling back to library")
         }
 
         // ── FRANCHISE IMMERSION: LLM picks from franchise's full soundtrack ──
         if (franchiseProfile != null && spotifyApi != null && llmProvider.isConfigured) {
             val result = selectFranchiseSong(sceneState, classification, weather, dramaScale, customMood, franchiseProfile, spotifyApi)
             if (result != null) return result
-            AppLog.w(TAG, "Franchise mode selection failed, falling back to library")
+            AppLog.w(TAG, "Franchise mode attempt 1 failed, retrying...")
+            val retry = selectFranchiseSong(sceneState, classification, weather, dramaScale, customMood, franchiseProfile, spotifyApi)
+            if (retry != null) return retry
+            AppLog.w(TAG, "Franchise mode attempt 2 failed, falling back to library")
         }
 
         // ── PROTAGONIST MODE: pick from user's analyzed library ──
@@ -250,14 +256,14 @@ Return JSON with:
 
         val response = llmProvider.generate(
             prompt = prompt,
-            systemPrompt = Prompts.SCENE_SCORER,
+            systemPrompt = Prompts.CHARACTER_SCORER,
             temperature = 0.7f,
             maxTokens = 1024,
             jsonMode = true
         )
 
-        if (response == null) {
-            AppLog.w(TAG, "Character mode LLM returned null")
+        if (response == null || response.length < 20) {
+            AppLog.w(TAG, "Character mode LLM returned null/short response (${response?.length} chars)")
             return null
         }
 
@@ -271,7 +277,8 @@ Return JSON with:
                 spotifyApi,
                 recommendation.searchQuery,
                 recommendation.title,
-                recommendation.artist
+                recommendation.artist,
+                characterProfile.franchise
             )
 
             if (match != null) {
@@ -339,14 +346,14 @@ Return JSON with:
 
         val response = llmProvider.generate(
             prompt = prompt,
-            systemPrompt = Prompts.SCENE_SCORER,
+            systemPrompt = Prompts.FRANCHISE_SCORER,
             temperature = 0.7f,
             maxTokens = 1024,
             jsonMode = true
         )
 
-        if (response == null) {
-            AppLog.w(TAG, "Franchise mode LLM returned null")
+        if (response == null || response.length < 20) {
+            AppLog.w(TAG, "Franchise mode LLM returned null/short response (${response?.length} chars)")
             return null
         }
 
@@ -359,7 +366,8 @@ Return JSON with:
                 spotifyApi,
                 recommendation.searchQuery,
                 recommendation.title,
-                recommendation.artist
+                recommendation.artist,
+                franchiseProfile.name
             )
 
             if (match != null) {
@@ -390,7 +398,8 @@ Return JSON with:
         spotifyApi: SpotifyWebApi,
         searchQuery: String,
         title: String,
-        artist: String
+        artist: String,
+        franchise: String? = null
     ): SpotifyTrack? {
         // 1. Try the LLM's optimized search query
         val result1 = spotifyApi.searchTracks(searchQuery, 5).firstOrNull()
@@ -413,6 +422,13 @@ Return JSON with:
             AppLog.d(TAG, "Search fallback 3: $cleanTitle $artist")
             val result4 = spotifyApi.searchTracks("$cleanTitle $artist", 5).firstOrNull()
             if (result4 != null) return result4
+        }
+
+        // 5. Try "title franchise" (for OST tracks where artist name is wrong/localized)
+        if (franchise != null) {
+            AppLog.d(TAG, "Search fallback 4: $title $franchise")
+            val result5 = spotifyApi.searchTracks("$title $franchise", 5).firstOrNull()
+            if (result5 != null) return result5
         }
 
         return null
