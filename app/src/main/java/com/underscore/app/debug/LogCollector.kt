@@ -180,7 +180,7 @@ class LogCollector(private val context: Context) {
             appendLine("Gemini key: ${if (prefs.getString("gemini_api_key", "")?.isNotBlank() == true) "(set)" else "(empty)"}")
             appendLine("Claude key: ${if (prefs.getString("claude_api_key", "")?.isNotBlank() == true) "(set)" else "(empty)"}")
             appendLine("Weather key: ${if (prefs.getString("weather_api_key", "")?.isNotBlank() == true) "(set)" else "(empty)"}")
-            appendLine("Places key: ${if (prefs.getString("places_api_key", "")?.isNotBlank() == true) "(set)" else "(empty)"}")
+            appendLine("Location: OpenStreetMap (Overpass API)")
             appendLine("Battery saver: ${prefs.getBoolean("battery_saver", false)}")
         }
     }

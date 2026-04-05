@@ -33,9 +33,7 @@ import com.underscore.app.narrative.ProtagonistProfileManager
 import com.underscore.app.playback.PlaybackController
 import com.underscore.app.playback.TransitionManager
 import com.underscore.app.sensor.HeartRateProvider
-import com.underscore.app.sensor.NearbyPlacesProvider
 import com.underscore.app.sensor.OverpassPlacesProvider
-import com.underscore.app.sensor.PlacesProvider
 import com.underscore.app.sensor.SensorAggregator
 import com.underscore.app.sensor.WeatherProvider
 import kotlinx.coroutines.Job
@@ -142,14 +140,7 @@ class UnderscoreService : LifecycleService() {
         knownLocationManager = KnownLocationManager(db)
 
         // Initialize sensor providers
-        val placesKey = userPrefs.placesApiKey
-        val placesProvider: NearbyPlacesProvider = if (placesKey.isNotBlank()) {
-            AppLog.d(TAG, "Using Google Places API (user key configured)")
-            PlacesProvider(placesKey)
-        } else {
-            AppLog.d(TAG, "Using OpenStreetMap Overpass API (free)")
-            OverpassPlacesProvider()
-        }
+        val placesProvider = OverpassPlacesProvider()
         sensorAggregator = SensorAggregator(this, placesProvider)
         heartRateProvider = HeartRateProvider(this)
         contextEngine = ContextEngine()

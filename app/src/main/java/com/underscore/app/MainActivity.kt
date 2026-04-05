@@ -278,7 +278,7 @@ class MainActivity : ComponentActivity() {
                                 customApiKey = userPrefs.customApiKey,
                                 customModel = userPrefs.customModel,
                                 weatherKey = userPrefs.weatherApiKey,
-                                placesKey = userPrefs.placesApiKey,
+
                                 batterySaver = userPrefs.batterySaver
                             ),
                             onProviderChanged = {
@@ -294,7 +294,7 @@ class MainActivity : ComponentActivity() {
                             onCustomApiKeyChanged = { userPrefs.customApiKey = it },
                             onCustomModelChanged = { userPrefs.customModel = it },
                             onWeatherKeyChanged = { userPrefs.weatherApiKey = it },
-                            onPlacesKeyChanged = { userPrefs.placesApiKey = it },
+
                             onBatterySaverChanged = { userPrefs.batterySaver = it },
                             onDeleteAllData = { deleteAllData() },
                             onShareDebugReport = { LogCollector(this@MainActivity).reportBug() },

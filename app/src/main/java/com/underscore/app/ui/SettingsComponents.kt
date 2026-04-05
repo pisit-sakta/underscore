@@ -38,7 +38,7 @@ data class SettingsState(
     val customApiKey: String = "",
     val customModel: String = "",
     val weatherKey: String = "",
-    val placesKey: String = "",
+
     val batterySaver: Boolean = false,
     val dramaScale: Int = 5,
     val foodAnalogyMode: Boolean = false,

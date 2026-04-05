@@ -41,7 +41,7 @@ fun SettingsSubScreen(
     onCustomApiKeyChanged: (String) -> Unit,
     onCustomModelChanged: (String) -> Unit,
     onWeatherKeyChanged: (String) -> Unit,
-    onPlacesKeyChanged: (String) -> Unit,
+
     onBatterySaverChanged: (Boolean) -> Unit,
     onDeleteAllData: () -> Unit,
     onShareDebugReport: () -> Unit,
@@ -155,24 +155,11 @@ fun SettingsSubScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // ── Location & Weather ──
-        SectionHeader("LOCATION AWARENESS")
-        HintText("Powers the World Layer. Uses free OpenStreetMap data by default.")
+        // ── Weather ──
+        SectionHeader("WEATHER & LOCATION")
+        HintText("Location uses free OpenStreetMap data. No key needed.")
 
         Spacer(modifier = Modifier.height(12.dp))
-
-        ApiKeyField("Google Places Key (optional)", state.placesKey, onPlacesKeyChanged)
-        SetupGuide(
-            title = "Location: OpenStreetMap (free, no key needed)",
-            steps = listOf(
-                "Location awareness works out of the box using OpenStreetMap.",
-                "No API key required. No usage fees. Ever.",
-                "If you prefer Google Places, enter a key above to switch."
-            ),
-            note = "OpenStreetMap is the default. Google Places is optional."
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
 
         ApiKeyField("OpenWeatherMap Key", state.weatherKey, onWeatherKeyChanged)
         SetupGuide(

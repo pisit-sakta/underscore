@@ -15,7 +15,7 @@ class UserPreferences(context: Context) {
         private const val KEY_CUSTOM_API_KEY = "custom_api_key"
         private const val KEY_CUSTOM_MODEL = "custom_model"
         private const val KEY_WEATHER_API_KEY = "weather_api_key"
-        private const val KEY_PLACES_API_KEY = "places_api_key"
+
         private const val KEY_BATTERY_SAVER = "battery_saver"
         private const val KEY_SPOTIFY_HINT_DISMISSED = "spotify_hint_dismissed"
         private const val KEY_SPOTIFY_SCOPE_VERSION = "spotify_scope_version"
@@ -64,10 +64,6 @@ class UserPreferences(context: Context) {
     var weatherApiKey: String
         get() = prefs.getString(KEY_WEATHER_API_KEY, "") ?: ""
         set(value) { prefs.edit().putString(KEY_WEATHER_API_KEY, value).apply() }
-
-    var placesApiKey: String
-        get() = prefs.getString(KEY_PLACES_API_KEY, "") ?: ""
-        set(value) { prefs.edit().putString(KEY_PLACES_API_KEY, value).apply() }
 
     var batterySaver: Boolean
         get() = prefs.getBoolean(KEY_BATTERY_SAVER, false)

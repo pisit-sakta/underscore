@@ -14,7 +14,7 @@ import java.time.LocalTime
 
 class SensorAggregator(
     context: Context,
-    private val placesProvider: NearbyPlacesProvider? = null
+    private val placesProvider: OverpassPlacesProvider? = null
 ) {
 
     companion object {
@@ -75,7 +75,7 @@ class SensorAggregator(
 
     private suspend fun fetchPlacesIfNeeded(lat: Double, lng: Double): PlacesResult? {
         val provider = placesProvider ?: return null
-        // PlacesProvider handles its own distance-based caching internally
+        // OverpassPlacesProvider handles its own distance-based caching internally
         val result = provider.getNearbyPlaces(lat, lng)
         if (result != null) {
             cachedPlaces = result

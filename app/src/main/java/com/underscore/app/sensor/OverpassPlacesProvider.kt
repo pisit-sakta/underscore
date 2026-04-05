@@ -10,11 +10,18 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
 
+data class PlacesResult(
+    val placeType: String,
+    val zoneCharacter: String,
+    val nearbyLandmarks: List<String>,
+    val rawTypes: List<String>
+)
+
 /**
- * Free replacement for Google Places API using OpenStreetMap Overpass API.
- * Returns the same PlacesResult format so the downstream pipeline is untouched.
+ * Location awareness using free OpenStreetMap Overpass API.
+ * No API key needed. No usage fees.
  */
-class OverpassPlacesProvider : NearbyPlacesProvider {
+class OverpassPlacesProvider {
 
     companion object {
         private const val TAG = "OverpassPlaces"
@@ -41,7 +48,7 @@ class OverpassPlacesProvider : NearbyPlacesProvider {
     private var cachedLng: Double = 0.0
     private var cachedAtMs: Long = 0L
 
-    override suspend fun getNearbyPlaces(lat: Double, lng: Double): PlacesResult? {
+    suspend fun getNearbyPlaces(lat: Double, lng: Double): PlacesResult? {
         val now = System.currentTimeMillis()
 
         // Return cached if user hasn't moved far enough AND cooldown hasn't expired
@@ -187,7 +194,7 @@ class OverpassPlacesProvider : NearbyPlacesProvider {
         )
     }
 
-    // ── Classification (mirrors PlacesProvider's priority order) ──
+    // ── Classification ──
 
     private fun classifyPrimaryType(tags: Map<String, Int>): String {
         // Priority-ordered, same as Google version
