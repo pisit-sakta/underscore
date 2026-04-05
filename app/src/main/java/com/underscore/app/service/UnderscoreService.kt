@@ -489,8 +489,8 @@ class UnderscoreService : LifecycleService() {
         val analyzer = LibraryAnalyzer(spotifyApi, llmProvider, db)
 
         val result = analyzer.analyzeLibrary(
-            onFetchProgress = { fetched ->
-                _libraryStatus.value = "Fetching library: $fetched songs found"
+            onFetchProgress = { fetched, total ->
+                _libraryStatus.value = if (total > 0) "Fetching library: $fetched / $total" else "Fetching library: $fetched songs"
             },
             onProgress = { analyzed, total ->
                 _libraryStatus.value = "Analyzing: $analyzed / $total"

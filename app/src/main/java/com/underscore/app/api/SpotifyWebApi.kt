@@ -153,10 +153,11 @@ class SpotifyWebApi(private val accessToken: String) {
      * Deduplicates by track ID.
      */
     suspend fun getAllUserTracks(
-        onProgress: (fetchedSoFar: Int) -> Unit = {}
+        onProgress: (fetchedSoFar: Int, estimatedTotal: Int) -> Unit = { _, _ -> }
     ): List<SpotifyTrack> {
         val seen = mutableSetOf<String>()
         val tracks = mutableListOf<SpotifyTrack>()
+        var estimatedTotal = 0
 
         fun addUnique(newTracks: List<SpotifyTrack>) {
             for (t in newTracks) {
@@ -165,14 +166,19 @@ class SpotifyWebApi(private val accessToken: String) {
                     tracks.add(t)
                 }
             }
-            onProgress(tracks.size)
+            onProgress(tracks.size, estimatedTotal)
         }
 
         // 1. Top tracks across all time ranges
         for (range in listOf("short_term", "medium_term", "long_term")) {
             var offset = 0
+            var rangeAdded = false
             while (true) {
                 val response = getTopTracks(range, 50, offset) ?: break
+                if (!rangeAdded) {
+                    estimatedTotal += response.total
+                    rangeAdded = true
+                }
                 addUnique(response.items)
                 if (response.next == null) break
                 offset += 50
@@ -182,6 +188,7 @@ class SpotifyWebApi(private val accessToken: String) {
         Log.d(TAG, "After top tracks: ${tracks.size} unique")
 
         // 2. Recently played
+        estimatedTotal += 50
         val recent = getRecentlyPlayed(50)
         if (recent != null) {
             addUnique(recent.items.map { it.track })
@@ -190,8 +197,13 @@ class SpotifyWebApi(private val accessToken: String) {
 
         // 3. Liked songs (inline pagination so progress updates per page)
         var savedOffset = 0
+        var savedTotalAdded = false
         while (true) {
             val response = getSavedTracks(50, savedOffset) ?: break
+            if (!savedTotalAdded) {
+                estimatedTotal += response.total
+                savedTotalAdded = true
+            }
             addUnique(response.items.map { it.track })
             if (response.next == null) break
             savedOffset += 50
@@ -210,6 +222,8 @@ class SpotifyWebApi(private val accessToken: String) {
             delay(200)
         }
         Log.d(TAG, "Found ${allPlaylists.size} playlists")
+        estimatedTotal += allPlaylists.sumOf { it.tracks.total }
+        onProgress(tracks.size, estimatedTotal)
 
         allPlaylists.forEach { playlist ->
             var offset = 0

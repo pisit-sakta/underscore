@@ -41,7 +41,7 @@ class LibraryAnalyzer(
 
     suspend fun analyzeLibrary(
         onProgress: (analyzed: Int, total: Int) -> Unit = { _, _ -> },
-        onFetchProgress: (fetchedSoFar: Int) -> Unit = { _ -> }
+        onFetchProgress: (fetchedSoFar: Int, estimatedTotal: Int) -> Unit = { _, _ -> }
     ): AnalysisResult {
         // Check how many songs we already have tagged
         val existingCount = db.taggedSongDao().count()
