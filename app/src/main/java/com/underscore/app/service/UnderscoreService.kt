@@ -37,6 +37,7 @@ import com.underscore.app.sensor.OverpassPlacesProvider
 import com.underscore.app.sensor.SensorAggregator
 import com.underscore.app.sensor.WeatherProvider
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
