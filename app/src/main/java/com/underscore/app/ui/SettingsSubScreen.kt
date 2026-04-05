@@ -41,6 +41,7 @@ fun SettingsSubScreen(
     onCustomApiUrlChanged: (String) -> Unit,
     onCustomApiKeyChanged: (String) -> Unit,
     onCustomModelChanged: (String) -> Unit,
+    onProxyPasswordChanged: (String) -> Unit,
     onWeatherKeyChanged: (String) -> Unit,
 
     onBatterySaverChanged: (Boolean) -> Unit,
@@ -164,10 +165,19 @@ fun SettingsSubScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                ApiKeyField(
+                    label = "Proxy Password",
+                    value = state.proxyPassword,
+                    onValueChange = onProxyPasswordChanged
+                )
+                HintText("Optional. If set, sent as Bearer token instead of API key. For reverse proxies.")
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 EndpointCheckButton(
                     url = state.customApiUrl,
                     model = state.customModel,
-                    apiKey = state.customApiKey
+                    apiKey = if (state.proxyPassword.isNotBlank()) state.proxyPassword else state.customApiKey
                 )
             }
         }

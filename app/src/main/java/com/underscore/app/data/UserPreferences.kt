@@ -14,6 +14,7 @@ class UserPreferences(context: Context) {
         private const val KEY_CUSTOM_API_URL = "custom_api_url"
         private const val KEY_CUSTOM_API_KEY = "custom_api_key"
         private const val KEY_CUSTOM_MODEL = "custom_model"
+        private const val KEY_CUSTOM_PROXY_PASSWORD = "custom_proxy_password"
         private const val KEY_WEATHER_API_KEY = "weather_api_key"
 
         private const val KEY_BATTERY_SAVER = "battery_saver"
@@ -60,6 +61,10 @@ class UserPreferences(context: Context) {
     var customModel: String
         get() = prefs.getString(KEY_CUSTOM_MODEL, "") ?: ""
         set(value) { prefs.edit().putString(KEY_CUSTOM_MODEL, value).apply() }
+
+    var customProxyPassword: String
+        get() = prefs.getString(KEY_CUSTOM_PROXY_PASSWORD, "") ?: ""
+        set(value) { prefs.edit().putString(KEY_CUSTOM_PROXY_PASSWORD, value).apply() }
 
     var weatherApiKey: String
         get() = prefs.getString(KEY_WEATHER_API_KEY, "") ?: ""

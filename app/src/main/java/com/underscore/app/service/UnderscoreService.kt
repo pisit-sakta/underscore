@@ -175,7 +175,8 @@ class UnderscoreService : LifecycleService() {
             LlmProviderType.OPENAI_COMPATIBLE -> {
                 val url = userPrefs.customApiUrl
                 val model = userPrefs.customModel
-                val key = userPrefs.customApiKey
+                val proxyPw = userPrefs.customProxyPassword
+                val key = if (proxyPw.isNotBlank()) proxyPw else userPrefs.customApiKey
                 if (url.isNotBlank() && model.isNotBlank()) {
                     OpenAiCompatibleApi(baseUrl = url, model = model, apiKey = key)
                 } else {

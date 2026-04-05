@@ -277,6 +277,7 @@ class MainActivity : ComponentActivity() {
                                 customApiUrl = userPrefs.customApiUrl,
                                 customApiKey = userPrefs.customApiKey,
                                 customModel = userPrefs.customModel,
+                                proxyPassword = userPrefs.customProxyPassword,
                                 weatherKey = userPrefs.weatherApiKey,
 
                                 batterySaver = userPrefs.batterySaver
@@ -293,6 +294,7 @@ class MainActivity : ComponentActivity() {
                             onCustomApiUrlChanged = { userPrefs.customApiUrl = it },
                             onCustomApiKeyChanged = { userPrefs.customApiKey = it },
                             onCustomModelChanged = { userPrefs.customModel = it },
+                            onProxyPasswordChanged = { userPrefs.customProxyPassword = it },
                             onWeatherKeyChanged = { userPrefs.weatherApiKey = it },
 
                             onBatterySaverChanged = { userPrefs.batterySaver = it },

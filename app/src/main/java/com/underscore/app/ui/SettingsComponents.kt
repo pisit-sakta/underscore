@@ -45,6 +45,7 @@ data class SettingsState(
     val customApiUrl: String = "",
     val customApiKey: String = "",
     val customModel: String = "",
+    val proxyPassword: String = "",
     val weatherKey: String = "",
 
     val batterySaver: Boolean = false,
