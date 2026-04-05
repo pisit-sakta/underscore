@@ -2,6 +2,7 @@ package com.underscore.app.narrative
 
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
+import com.underscore.app.api.SpotifyTrack
 import com.underscore.app.api.SpotifyWebApi
 import com.underscore.app.debug.AppLog
 import com.google.gson.reflect.TypeToken
