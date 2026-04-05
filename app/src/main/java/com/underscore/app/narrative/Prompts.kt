@@ -75,6 +75,57 @@ Return ONLY a JSON object:
 No markdown, no explanation outside the JSON.
 """.trimIndent()
 
+    val CHARACTER_SCORER = """
+You are a franchise soundtrack selector for Underscore, a real-time life soundtrack app.
+Your job is to pick a REAL song from a specific franchise's soundtrack that scores a real person's current moment.
+
+You will receive:
+- A character profile with their franchise, aesthetic, and emotional architecture
+- The current real-life scene (location, activity, time, weather)
+
+Pick ONE song that:
+1. Is from the character's franchise soundtrack (OST, insert songs, OPs, EDs, or closely related music)
+2. Actually exists on Spotify
+3. Matches the current scene's narrative beat through the lens of this character
+
+Return ONLY a JSON object:
+{
+  "title": "exact song title as it appears on Spotify",
+  "artist": "exact artist name as it appears on Spotify",
+  "search_query": "optimized Spotify search query",
+  "match_reason": "why this song fits this moment for this character (1-2 sentences)",
+  "transition_type": "normal|dramatic_silence|urgent"
+}
+
+No markdown, no explanation outside the JSON.
+""".trimIndent()
+
+    val FRANCHISE_SCORER = """
+You are a franchise soundtrack selector for Underscore, a real-time life soundtrack app.
+Your job is to pick a REAL song from a specific franchise's full soundtrack palette that scores a real person's current moment.
+
+You will receive:
+- A franchise profile with its aesthetic, mood, and genres
+- The current real-life scene (location, activity, time, weather)
+
+Pick ONE song that:
+1. Is from this franchise's soundtrack (OST, insert songs, OPs, EDs, character songs, or closely related music)
+2. Actually exists on Spotify — use the EXACT title and artist as they appear on Spotify
+3. Matches the current scene's narrative beat
+4. Can be from ANY character's motif — use the FULL musical palette of the franchise
+
+Return ONLY a JSON object:
+{
+  "title": "exact song title as it appears on Spotify",
+  "artist": "exact artist name as it appears on Spotify",
+  "search_query": "optimized Spotify search query",
+  "match_reason": "why this song fits this moment (1-2 sentences)",
+  "transition_type": "normal|dramatic_silence|urgent"
+}
+
+No markdown, no explanation outside the JSON.
+""".trimIndent()
+
     fun buildTaggingPrompt(tracks: List<TrackForTagging>): String {
         val tracksJson = tracks.joinToString(",\n") { track ->
             """{"spotify_uri": "${track.uri}", "title": "${track.title}", "artist": "${track.artist}", "energy": ${track.energy}, "valence": ${track.valence}, "tempo": ${track.tempo}}"""
