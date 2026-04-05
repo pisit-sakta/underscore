@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.underscore.app.api.KeyValidator
 import com.underscore.app.api.LlmProviderType
 
 @Composable
@@ -91,7 +92,12 @@ fun SettingsSubScreen(
         when (selectedProvider) {
             LlmProviderType.GEMINI -> {
                 SectionHeader("GEMINI CONFIG")
-                ApiKeyField("Google AI API Key", state.geminiKey, onGeminiKeyChanged)
+                ApiKeyFieldWithCheck(
+                    label = "Google AI API Key",
+                    value = state.geminiKey,
+                    onValueChange = onGeminiKeyChanged,
+                    onCheck = { KeyValidator.checkGemini(it) }
+                )
                 SetupGuide(
                     title = "How to get a Gemini key (free)",
                     steps = listOf(
@@ -106,7 +112,12 @@ fun SettingsSubScreen(
             }
             LlmProviderType.CLAUDE -> {
                 SectionHeader("CLAUDE CONFIG")
-                ApiKeyField("Anthropic API Key", state.claudeKey, onClaudeKeyChanged)
+                ApiKeyFieldWithCheck(
+                    label = "Anthropic API Key",
+                    value = state.claudeKey,
+                    onValueChange = onClaudeKeyChanged,
+                    onCheck = { KeyValidator.checkClaude(it) }
+                )
                 SetupGuide(
                     title = "How to get a Claude key",
                     steps = listOf(
@@ -144,10 +155,11 @@ fun SettingsSubScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                ApiKeyField(
+                ApiKeyFieldWithCheck(
                     label = "API Key",
                     value = state.customApiKey,
-                    onValueChange = onCustomApiKeyChanged
+                    onValueChange = onCustomApiKeyChanged,
+                    onCheck = { KeyValidator.checkOpenAiCompatible(state.customApiUrl, state.customModel, it) }
                 )
                 HintText("Leave empty for local LLMs that don't require auth.")
             }
@@ -161,7 +173,12 @@ fun SettingsSubScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        ApiKeyField("OpenWeatherMap Key", state.weatherKey, onWeatherKeyChanged)
+        ApiKeyFieldWithCheck(
+            label = "OpenWeatherMap Key",
+            value = state.weatherKey,
+            onValueChange = onWeatherKeyChanged,
+            onCheck = { KeyValidator.checkWeather(it) }
+        )
         SetupGuide(
             title = "How to get an OpenWeatherMap key (free)",
             steps = listOf(

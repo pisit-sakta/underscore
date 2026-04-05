@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -18,16 +21,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.underscore.app.api.KeyCheckResult
 import com.underscore.app.api.LlmProviderType
 import com.underscore.app.data.CharacterProfile
+import kotlinx.coroutines.launch
 
 /** Shared state for settings sub-screens. */
 data class SettingsState(
@@ -149,6 +156,94 @@ fun ApiKeyField(label: String, value: String, onValueChange: (String) -> Unit) {
         visualTransformation = PasswordVisualTransformation(),
         textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
     )
+}
+
+@Composable
+fun ApiKeyFieldWithCheck(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    onCheck: suspend (String) -> KeyCheckResult
+) {
+    val scope = rememberCoroutineScope()
+    var checkState by remember { mutableStateOf<CheckState>(CheckState.Idle) }
+    var currentKey by remember(value) { mutableStateOf(value) }
+
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            OutlinedTextField(
+                value = currentKey,
+                onValueChange = {
+                    currentKey = it
+                    onValueChange(it)
+                    checkState = CheckState.Idle
+                },
+                label = { Text(label, fontSize = 12.sp) },
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(
+                onClick = {
+                    if (currentKey.isNotBlank()) {
+                        checkState = CheckState.Checking
+                        scope.launch {
+                            val result = onCheck(currentKey)
+                            checkState = when (result) {
+                                is KeyCheckResult.Valid -> CheckState.Valid
+                                is KeyCheckResult.Invalid -> CheckState.Failed(result.reason)
+                                is KeyCheckResult.Error -> CheckState.Failed(result.message)
+                            }
+                        }
+                    }
+                },
+                enabled = currentKey.isNotBlank() && checkState != CheckState.Checking,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                if (checkState == CheckState.Checking) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.height(16.dp).width(16.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                } else {
+                    Text("CHECK", fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.sp)
+                }
+            }
+        }
+        when (val state = checkState) {
+            is CheckState.Valid -> Text(
+                "Valid",
+                fontSize = 11.sp,
+                color = Color(0xFF16A34A),
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+            )
+            is CheckState.Failed -> Text(
+                state.reason,
+                fontSize = 11.sp,
+                color = Color(0xFFDC2626),
+                modifier = Modifier.padding(top = 4.dp, start = 4.dp)
+            )
+            else -> {}
+        }
+    }
+}
+
+private sealed class CheckState {
+    object Idle : CheckState()
+    object Checking : CheckState()
+    object Valid : CheckState()
+    data class Failed(val reason: String) : CheckState()
 }
 
 @Composable
