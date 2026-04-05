@@ -30,14 +30,9 @@ object KeyValidator {
             val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey"
             val request = Request.Builder().url(url).post(body.toRequestBody(json)).build()
             val response = client.newCall(request).execute()
-            response.body?.close()
-            when (response.code) {
-                200 -> KeyCheckResult.Valid
-                400 -> KeyCheckResult.Invalid("Invalid key format")
-                401, 403 -> KeyCheckResult.Invalid("Unauthorized — check your key")
-                429 -> KeyCheckResult.Valid // rate limited but key IS valid
-                else -> KeyCheckResult.Invalid("HTTP ${response.code}")
-            }
+            val code = response.code
+            response.body?.string() // consume body to release connection
+            codeToResult(code)
         } catch (e: Exception) {
             KeyCheckResult.Error(e.message ?: "Network error")
         }
@@ -55,14 +50,9 @@ object KeyValidator {
                 .addHeader("content-type", "application/json")
                 .build()
             val response = client.newCall(request).execute()
-            response.body?.close()
-            when (response.code) {
-                200 -> KeyCheckResult.Valid
-                401 -> KeyCheckResult.Invalid("Invalid API key")
-                403 -> KeyCheckResult.Invalid("Forbidden — check permissions")
-                429 -> KeyCheckResult.Valid // rate limited but key IS valid
-                else -> KeyCheckResult.Invalid("HTTP ${response.code}")
-            }
+            val code = response.code
+            response.body?.string()
+            codeToResult(code)
         } catch (e: Exception) {
             KeyCheckResult.Error(e.message ?: "Network error")
         }
@@ -91,14 +81,15 @@ object KeyValidator {
                 requestBuilder.addHeader("Authorization", "Bearer $apiKey")
             }
             val response = client.newCall(requestBuilder.build()).execute()
-            response.body?.close()
-            when (response.code) {
+            val code = response.code
+            response.body?.string()
+            when (code) {
                 200 -> KeyCheckResult.Valid
                 401 -> KeyCheckResult.Invalid("Unauthorized")
                 403 -> KeyCheckResult.Invalid("Forbidden")
                 404 -> KeyCheckResult.Invalid("Endpoint not found")
                 429 -> KeyCheckResult.Valid
-                else -> KeyCheckResult.Invalid("HTTP ${response.code}")
+                else -> KeyCheckResult.Invalid("HTTP $code")
             }
         } catch (e: Exception) {
             KeyCheckResult.Error(e.message ?: "Connection failed")
@@ -108,19 +99,23 @@ object KeyValidator {
     suspend fun checkWeather(apiKey: String): KeyCheckResult = withContext(Dispatchers.IO) {
         if (apiKey.isBlank()) return@withContext KeyCheckResult.Invalid("No key entered")
         try {
-            // Test with Bangkok coordinates
             val url = "https://api.openweathermap.org/data/2.5/weather?lat=13.75&lon=100.5&appid=$apiKey&units=metric"
             val request = Request.Builder().url(url).build()
             val response = client.newCall(request).execute()
-            response.body?.close()
-            when (response.code) {
-                200 -> KeyCheckResult.Valid
-                401 -> KeyCheckResult.Invalid("Invalid API key")
-                429 -> KeyCheckResult.Valid
-                else -> KeyCheckResult.Invalid("HTTP ${response.code}")
-            }
+            val code = response.code
+            response.body?.string()
+            codeToResult(code)
         } catch (e: Exception) {
             KeyCheckResult.Error(e.message ?: "Network error")
         }
+    }
+
+    private fun codeToResult(code: Int): KeyCheckResult = when (code) {
+        200 -> KeyCheckResult.Valid
+        400 -> KeyCheckResult.Invalid("Bad request — check key format")
+        401 -> KeyCheckResult.Invalid("Invalid API key")
+        403 -> KeyCheckResult.Invalid("Forbidden — check permissions")
+        429 -> KeyCheckResult.Valid // rate limited but key IS valid
+        else -> KeyCheckResult.Invalid("HTTP $code")
     }
 }

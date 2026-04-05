@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
+
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -193,11 +193,14 @@ fun ApiKeyFieldWithCheck(
                     if (currentKey.isNotBlank()) {
                         checkState = CheckState.Checking
                         scope.launch {
-                            val result = onCheck(currentKey)
-                            checkState = when (result) {
-                                is KeyCheckResult.Valid -> CheckState.Valid
-                                is KeyCheckResult.Invalid -> CheckState.Failed(result.reason)
-                                is KeyCheckResult.Error -> CheckState.Failed(result.message)
+                            checkState = try {
+                                when (val result = onCheck(currentKey)) {
+                                    is KeyCheckResult.Valid -> CheckState.Valid
+                                    is KeyCheckResult.Invalid -> CheckState.Failed(result.reason)
+                                    is KeyCheckResult.Error -> CheckState.Failed(result.message)
+                                }
+                            } catch (e: Exception) {
+                                CheckState.Failed(e.message ?: "Check failed")
                             }
                         }
                     }
@@ -210,11 +213,7 @@ fun ApiKeyFieldWithCheck(
                 shape = RoundedCornerShape(8.dp)
             ) {
                 if (checkState == CheckState.Checking) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.height(16.dp).width(16.dp),
-                        strokeWidth = 2.dp,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                    Text("...", fontSize = 11.sp, fontWeight = FontWeight.Medium)
                 } else {
                     Text("CHECK", fontSize = 11.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.sp)
                 }
