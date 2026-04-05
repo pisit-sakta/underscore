@@ -197,7 +197,7 @@ class NarrativeEngine(
         val errorDetail = llmProvider.lastError
         val reason = when {
             !llmProvider.isConfigured -> "Local selection (no API key — set in Settings)"
-            response != null -> "Local selection (LLM response unparseable: ${stripMarkdownFences(response).take(80)})"
+            response != null -> "Local selection (LLM response unparseable: ${stripMarkdownFences(response).take(200)})"
             errorDetail != null -> "Local selection ($errorDetail)"
             else -> "Local selection (LLM returned empty)"
         }
@@ -265,9 +265,13 @@ Return JSON with:
             val recommendation = gson.fromJson(cleaned, CharacterSongRecommendation::class.java)
             AppLog.d(TAG, "Character mode recommends: ${recommendation.title} by ${recommendation.artist}")
 
-            // Search Spotify for the recommended track
-            val searchResults = spotifyApi.searchTracks(recommendation.searchQuery, 5)
-            val match = searchResults.firstOrNull()
+            // Search Spotify — try specific query first, then progressively broader
+            val match = searchSpotifyWithFallbacks(
+                spotifyApi,
+                recommendation.searchQuery,
+                recommendation.title,
+                recommendation.artist
+            )
 
             if (match != null) {
                 AppLog.d(TAG, "Spotify match found: ${match.name} by ${match.artistName} (${match.uri})")
@@ -280,7 +284,7 @@ Return JSON with:
                     transitionDurationMs = 3000
                 )
             } else {
-                AppLog.w(TAG, "No Spotify result for: ${recommendation.searchQuery}")
+                AppLog.w(TAG, "No Spotify result after all search attempts for: ${recommendation.title} by ${recommendation.artist}")
                 null
             }
         } catch (e: Exception) {
@@ -350,8 +354,12 @@ Return JSON with:
             val recommendation = gson.fromJson(cleaned, CharacterSongRecommendation::class.java)
             AppLog.d(TAG, "Franchise mode recommends: ${recommendation.title} by ${recommendation.artist}")
 
-            val searchResults = spotifyApi.searchTracks(recommendation.searchQuery, 5)
-            val match = searchResults.firstOrNull()
+            val match = searchSpotifyWithFallbacks(
+                spotifyApi,
+                recommendation.searchQuery,
+                recommendation.title,
+                recommendation.artist
+            )
 
             if (match != null) {
                 AppLog.d(TAG, "Spotify match found: ${match.name} by ${match.artistName} (${match.uri})")
@@ -364,7 +372,7 @@ Return JSON with:
                     transitionDurationMs = 3000
                 )
             } else {
-                AppLog.w(TAG, "No Spotify result for franchise search: ${recommendation.searchQuery}")
+                AppLog.w(TAG, "No Spotify result after all search attempts for: ${recommendation.title} by ${recommendation.artist}")
                 null
             }
         } catch (e: Exception) {
@@ -374,6 +382,42 @@ Return JSON with:
     }
 
     /** Strip markdown code fences that LLMs sometimes wrap around JSON. */
+    /**
+     * Try multiple search strategies to find a track on Spotify.
+     * LLM-generated search queries are often too specific or use wrong naming.
+     */
+    private suspend fun searchSpotifyWithFallbacks(
+        spotifyApi: SpotifyWebApi,
+        searchQuery: String,
+        title: String,
+        artist: String
+    ): SpotifyTrack? {
+        // 1. Try the LLM's optimized search query
+        val result1 = spotifyApi.searchTracks(searchQuery, 5).firstOrNull()
+        if (result1 != null) return result1
+
+        // 2. Try "title artist" (simple and effective)
+        val simpleQuery = "$title $artist"
+        AppLog.d(TAG, "Search fallback 1: $simpleQuery")
+        val result2 = spotifyApi.searchTracks(simpleQuery, 5).firstOrNull()
+        if (result2 != null) return result2
+
+        // 3. Try just the title (artist name might be wrong/localized)
+        AppLog.d(TAG, "Search fallback 2: $title")
+        val result3 = spotifyApi.searchTracks(title, 5).firstOrNull()
+        if (result3 != null) return result3
+
+        // 4. Try title without parenthetical suffixes like "(TV Version)" or "- OST"
+        val cleanTitle = title.replace(Regex("\\s*[\\(\\-].*$"), "").trim()
+        if (cleanTitle != title && cleanTitle.isNotBlank()) {
+            AppLog.d(TAG, "Search fallback 3: $cleanTitle $artist")
+            val result4 = spotifyApi.searchTracks("$cleanTitle $artist", 5).firstOrNull()
+            if (result4 != null) return result4
+        }
+
+        return null
+    }
+
     private fun stripMarkdownFences(text: String): String {
         var cleaned = text.trim()
         // Remove ```json ... ``` or ``` ... ```
