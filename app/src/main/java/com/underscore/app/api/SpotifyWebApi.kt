@@ -291,60 +291,69 @@ class SpotifyWebApi(private val accessToken: String) {
         return allFeatures
     }
 
-    private suspend fun <T> get(url: String, clazz: Class<T>): T? = withContext(Dispatchers.IO) {
-        val maxRetries = 5
-        var attempt = 0
+    private suspend fun <T> get(url: String, clazz: Class<T>): T? {
+        return withContext(Dispatchers.IO) {
+            val maxRetries = 5
+            var attempt = 0
 
-        try {
-            totalApiCalls++
-            lastCallEndpoint = url.substringBefore("?").substringAfter("/v1")
+            try {
+                totalApiCalls++
+                lastCallEndpoint = url.substringBefore("?").substringAfter("/v1")
 
-            val request = Request.Builder()
-                .url(url)
-                .addHeader("Authorization", "Bearer $accessToken")
-                .build()
+                val request = Request.Builder()
+                    .url(url)
+                    .addHeader("Authorization", "Bearer $accessToken")
+                    .build()
 
-            while (true) {
-                val response = client.newCall(request).execute()
+                var result: T? = null
+                var done = false
+                while (!done) {
+                    val response = client.newCall(request).execute()
 
-                if (response.code == 429) {
-                    rateLimitHits++
-                    response.close()
-                    if (attempt >= maxRetries) {
-                        Log.e(TAG, "Rate limited after $maxRetries retries, giving up: ${url.substringBefore("?")}")
-                        failedCalls++
-                        if (lastApiError == null) lastApiError = "Rate limited — try again later"
-                        return@withContext null
+                    if (response.code == 429) {
+                        rateLimitHits++
+                        response.close()
+                        if (attempt >= maxRetries) {
+                            Log.e(TAG, "Rate limited after $maxRetries retries, giving up: ${url.substringBefore("?")}")
+                            failedCalls++
+                            if (lastApiError == null) lastApiError = "Rate limited — try again later"
+                            done = true
+                            continue
+                        }
+                        val retryAfter = response.header("Retry-After")?.toLongOrNull()
+                            ?: (1L shl attempt).coerceAtMost(32) // exponential backoff: 1, 2, 4, 8, 16, 32
+                        Log.w(TAG, "Rate limited (attempt ${attempt + 1}/$maxRetries), waiting ${retryAfter}s: ${url.substringBefore("?")}")
+                        delay(retryAfter * 1000)
+                        attempt++
+                        continue
                     }
-                    val retryAfter = response.header("Retry-After")?.toLongOrNull()
-                        ?: (1L shl attempt).coerceAtMost(32) // exponential backoff: 1, 2, 4, 8, 16, 32
-                    Log.w(TAG, "Rate limited (attempt ${attempt + 1}/$maxRetries), waiting ${retryAfter}s: ${url.substringBefore("?")}")
-                    delay(retryAfter * 1000)
-                    attempt++
-                    continue
-                }
 
-                if (response.isSuccessful) {
-                    successfulCalls++
-                } else {
-                    failedCalls++
-                    val errorBody = response.body?.string()?.take(300)
-                    Log.e(TAG, "Spotify API HTTP ${response.code} for ${url.substringBefore("?")}: $errorBody")
-                    if (lastApiError == null) lastApiError = "HTTP ${response.code}"
-                    return@withContext null
-                }
+                    if (response.isSuccessful) {
+                        successfulCalls++
+                    } else {
+                        failedCalls++
+                        val errorBody = response.body?.string()?.take(300)
+                        Log.e(TAG, "Spotify API HTTP ${response.code} for ${url.substringBefore("?")}: $errorBody")
+                        if (lastApiError == null) lastApiError = "HTTP ${response.code}"
+                        done = true
+                        continue
+                    }
 
-                val body = response.body?.string()
-                if (body == null) {
-                    Log.e(TAG, "Spotify returned null body for ${url.substringBefore("?")}")
-                    return@withContext null
-                }
+                    val body = response.body?.string()
+                    if (body == null) {
+                        Log.e(TAG, "Spotify returned null body for ${url.substringBefore("?")}")
+                        done = true
+                        continue
+                    }
 
-                return@withContext gson.fromJson(body, clazz)
+                    result = gson.fromJson(body, clazz)
+                    done = true
+                }
+                result
+            } catch (e: Exception) {
+                Log.e(TAG, "Spotify request failed for ${url.substringBefore("?")}: ${e.message}", e)
+                null
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Spotify request failed for ${url.substringBefore("?")}: ${e.message}", e)
-            null
         }
     }
 }
