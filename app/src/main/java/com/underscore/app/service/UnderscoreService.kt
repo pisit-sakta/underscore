@@ -498,7 +498,8 @@ class UnderscoreService : LifecycleService() {
         )
 
         val suffix = when {
-            result.spotifyFetchedCount == 0 -> " — could not fetch library (check Spotify connection)"
+            result.spotifyFetchedCount == 0 && result.apiError != null -> " — ${result.apiError}"
+            result.spotifyFetchedCount == 0 -> " — could not fetch library"
             !llmProvider.isConfigured -> " (basic tags — no API key)"
             else -> ""
         }

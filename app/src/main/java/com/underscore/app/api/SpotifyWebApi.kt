@@ -53,6 +53,10 @@ class SpotifyWebApi(private val accessToken: String) {
         private const val TAG = "SpotifyWebApi"
     }
 
+    /** Last HTTP error encountered, for surfacing to UI */
+    var lastApiError: String? = null
+        private set
+
     private val client = OkHttpClient()
     private val gson = Gson()
     private val baseUrl = "https://api.spotify.com/v1"
@@ -261,7 +265,9 @@ class SpotifyWebApi(private val accessToken: String) {
             val response = client.newCall(request).execute()
             if (!response.isSuccessful) {
                 val errorBody = response.body?.string()?.take(300)
-                Log.e(TAG, "Spotify API ${response.code} for ${url.substringBefore("?")}: $errorBody")
+                val msg = "HTTP ${response.code} for ${url.substringBefore("?")}"
+                Log.e(TAG, "Spotify API $msg: $errorBody")
+                if (lastApiError == null) lastApiError = msg
                 return@withContext null
             }
 

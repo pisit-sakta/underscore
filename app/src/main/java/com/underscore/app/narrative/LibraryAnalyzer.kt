@@ -35,7 +35,8 @@ class LibraryAnalyzer(
 
     data class AnalysisResult(
         val taggedCount: Int,
-        val spotifyFetchedCount: Int
+        val spotifyFetchedCount: Int,
+        val apiError: String? = null
     )
 
     suspend fun analyzeLibrary(
@@ -49,7 +50,7 @@ class LibraryAnalyzer(
         val tracks = spotifyApi.getAllUserTracks(onProgress = onFetchProgress)
         if (tracks.isEmpty()) {
             Log.w(TAG, "No tracks found from Spotify")
-            return AnalysisResult(existingCount, 0)
+            return AnalysisResult(existingCount, 0, apiError = spotifyApi.lastApiError)
         }
         Log.d(TAG, "Found ${tracks.size} unique tracks from Spotify")
 
