@@ -14,7 +14,7 @@ import java.time.LocalTime
 
 class SensorAggregator(
     context: Context,
-    private val placesProvider: PlacesProvider? = null
+    private val placesProvider: NearbyPlacesProvider? = null
 ) {
 
     companion object {

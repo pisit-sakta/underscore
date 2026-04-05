@@ -155,24 +155,21 @@ fun SettingsSubScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // ── Sensor API Keys ──
-        SectionHeader("SENSOR API KEYS")
-        HintText("Power the World Layer — location awareness and weather context.")
+        // ── Location & Weather ──
+        SectionHeader("LOCATION AWARENESS")
+        HintText("Powers the World Layer. Uses free OpenStreetMap data by default.")
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        ApiKeyField("Google Places Key", state.placesKey, onPlacesKeyChanged)
+        ApiKeyField("Google Places Key (optional)", state.placesKey, onPlacesKeyChanged)
         SetupGuide(
-            title = "How to get a Google Places key (free)",
+            title = "Location: OpenStreetMap (free, no key needed)",
             steps = listOf(
-                "1. Go to console.cloud.google.com",
-                "2. Create a project (any name)",
-                "3. APIs & Services > Library > search \"Places API (New)\"",
-                "4. Enable it, then go to Credentials",
-                "5. Create Credentials > API Key",
-                "6. Copy and paste above"
+                "Location awareness works out of the box using OpenStreetMap.",
+                "No API key required. No usage fees. Ever.",
+                "If you prefer Google Places, enter a key above to switch."
             ),
-            note = "Free tier: \$200/month credit (~40,000 lookups)."
+            note = "OpenStreetMap is the default. Google Places is optional."
         )
 
         Spacer(modifier = Modifier.height(16.dp))

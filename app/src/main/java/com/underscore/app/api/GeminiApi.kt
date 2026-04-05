@@ -35,8 +35,7 @@ data class GeminiResponse(
 )
 
 data class GeminiCandidate(
-    val content: GeminiContent?,
-    val finishReason: String? = null
+    val content: GeminiContent?
 )
 
 class GeminiApi(private val apiKey: String) : LlmProvider {
@@ -83,16 +82,13 @@ class GeminiApi(private val apiKey: String) : LlmProvider {
         }
 
         val geminiResponse = gson.fromJson(responseBody, GeminiResponse::class.java)
-        val candidate = geminiResponse.candidates?.firstOrNull()
-        val text = candidate?.content?.parts?.firstOrNull()?.text
-        val finishReason = candidate?.finishReason
+        val text = geminiResponse.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
 
         if (text == null) {
             lastError = "$model returned no candidates: ${responseBody.take(150)}"
             AppLog.w(TAG, "Gemini returned no candidates. Response: ${responseBody.take(300)}")
         } else {
-            val reasonNote = if (finishReason != null && finishReason != "STOP") " [finishReason=$finishReason]" else ""
-            AppLog.d(TAG, "$model response OK (${text.length} chars)$reasonNote")
+            AppLog.d(TAG, "$model response OK (${text.length} chars)")
         }
 
         return text

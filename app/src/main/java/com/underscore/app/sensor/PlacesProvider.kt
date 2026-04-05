@@ -34,7 +34,7 @@ data class PlacesApiResult(
     @SerializedName("business_status") val businessStatus: String?
 )
 
-class PlacesProvider(private val apiKey: String) {
+class PlacesProvider(private val apiKey: String) : NearbyPlacesProvider {
 
     companion object {
         private const val TAG = "PlacesProvider"
@@ -51,7 +51,7 @@ class PlacesProvider(private val apiKey: String) {
     private var cachedLat: Double = 0.0
     private var cachedLng: Double = 0.0
 
-    suspend fun getNearbyPlaces(lat: Double, lng: Double): PlacesResult? {
+    override suspend fun getNearbyPlaces(lat: Double, lng: Double): PlacesResult? {
         // Return cached if user hasn't moved far enough
         if (cachedResult != null && distanceMeters(lat, lng, cachedLat, cachedLng) < CACHE_DISTANCE_M) {
             return cachedResult
