@@ -129,7 +129,7 @@ class SpotifyWebApi(private val accessToken: String) {
     data class PlaylistItem(
         val id: String,
         val name: String,
-        val tracks: PlaylistTracksRef
+        val tracks: PlaylistTracksRef?
     )
 
     data class PlaylistTracksRef(val total: Int)
@@ -231,7 +231,7 @@ class SpotifyWebApi(private val accessToken: String) {
             delay(200)
         }
         Log.d(TAG, "Found ${allPlaylists.size} playlists")
-        estimatedTotal += allPlaylists.sumOf { it.tracks.total }
+        estimatedTotal += allPlaylists.sumOf { it.tracks?.total ?: 0 }
         onProgress(tracks.size, estimatedTotal)
 
         allPlaylists.forEach { playlist ->
