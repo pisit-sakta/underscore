@@ -281,6 +281,9 @@ class SpotifyWebApi(private val accessToken: String) {
         return allFeatures
     }
 
+    /** Count of consecutive 429 errors — used to abort early if rate limited */
+    private var consecutive429s = 0
+
     private suspend fun <T> get(url: String, clazz: Class<T>): T? = withContext(Dispatchers.IO) {
         try {
             val request = Request.Builder()
@@ -290,13 +293,23 @@ class SpotifyWebApi(private val accessToken: String) {
 
             var response = client.newCall(request).execute()
 
-            // Handle rate limiting — wait and retry once
+            // Handle rate limiting — wait (capped at 5s) and retry once
             if (response.code == 429) {
-                val retryAfter = response.header("Retry-After")?.toLongOrNull() ?: 2
-                Log.w(TAG, "Rate limited, waiting ${retryAfter}s before retry: ${url.substringBefore("?")}")
+                consecutive429s++
+                if (consecutive429s > 5) {
+                    Log.e(TAG, "Too many rate limits ($consecutive429s), aborting")
+                    if (lastApiError == null) lastApiError = "Rate limited — try again later"
+                    return@withContext null
+                }
+                val retryAfter = (response.header("Retry-After")?.toLongOrNull() ?: 2).coerceAtMost(5)
+                Log.w(TAG, "Rate limited ($consecutive429s), waiting ${retryAfter}s: ${url.substringBefore("?")}")
                 response.close()
                 delay(retryAfter * 1000)
                 response = client.newCall(request).execute()
+            }
+
+            if (response.isSuccessful) {
+                consecutive429s = 0 // Reset on success
             }
 
             if (!response.isSuccessful) {
