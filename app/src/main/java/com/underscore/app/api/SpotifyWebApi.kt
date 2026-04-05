@@ -10,28 +10,29 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 
 data class SpotifyTrack(
-    val id: String,
-    val name: String,
-    val artists: List<SpotifyArtist>,
-    val album: SpotifyAlbum,
-    @SerializedName("duration_ms") val durationMs: Long,
-    val uri: String
+    val id: String = "",
+    val name: String = "",
+    val artists: List<SpotifyArtist>? = null,
+    val album: SpotifyAlbum? = null,
+    @SerializedName("duration_ms") val durationMs: Long = 0,
+    val uri: String = ""
 ) {
-    val artistName: String get() = artists.firstOrNull()?.name ?: "Unknown"
-    val albumName: String get() = album.name
+    val artistName: String get() = artists?.firstOrNull()?.name ?: "Unknown"
+    val albumName: String get() = album?.name ?: "Unknown"
+    val isValid: Boolean get() = id.isNotBlank() && uri.isNotBlank()
 }
 
-data class SpotifyArtist(val id: String, val name: String)
-data class SpotifyAlbum(val id: String, val name: String)
+data class SpotifyArtist(val id: String = "", val name: String = "")
+data class SpotifyAlbum(val id: String = "", val name: String = "")
 
 data class SavedTrackItem(
-    val track: SpotifyTrack
+    val track: SpotifyTrack? = null
 )
 
 data class SavedTracksResponse(
-    val items: List<SavedTrackItem>,
-    val total: Int,
-    val next: String?
+    val items: List<SavedTrackItem>? = null,
+    val total: Int = 0,
+    val next: String? = null
 )
 
 data class AudioFeatures(
@@ -45,7 +46,7 @@ data class AudioFeatures(
 )
 
 data class AudioFeaturesResponse(
-    @SerializedName("audio_features") val audioFeatures: List<AudioFeatures?>
+    @SerializedName("audio_features") val audioFeatures: List<AudioFeatures?>? = null
 )
 
 class SpotifyWebApi(private val accessToken: String) {
@@ -87,7 +88,7 @@ class SpotifyWebApi(private val accessToken: String) {
                 Log.w(TAG, "getSavedTracks returned null at offset=$offset, stopping pagination")
                 break
             }
-            tracks.addAll(response.items.map { it.track })
+            tracks.addAll(response.items?.mapNotNull { it.track } ?: emptyList())
             Log.d(TAG, "Fetched ${tracks.size}/${response.total} tracks")
             if (response.next == null) break
             offset += limit
@@ -101,9 +102,9 @@ class SpotifyWebApi(private val accessToken: String) {
     // ── Top Tracks (what the user actually listens to) ──
 
     data class TopTracksResponse(
-        val items: List<SpotifyTrack>,
-        val total: Int,
-        val next: String?
+        val items: List<SpotifyTrack>? = null,
+        val total: Int = 0,
+        val next: String? = null
     )
 
     suspend fun getTopTracks(timeRange: String = "medium_term", limit: Int = 50, offset: Int = 0): TopTracksResponse? {
@@ -113,11 +114,11 @@ class SpotifyWebApi(private val accessToken: String) {
     // ── Recently Played ──
 
     data class PlayHistoryItem(
-        val track: SpotifyTrack
+        val track: SpotifyTrack? = null
     )
 
     data class RecentlyPlayedResponse(
-        val items: List<PlayHistoryItem>
+        val items: List<PlayHistoryItem>? = null
     )
 
     suspend fun getRecentlyPlayed(limit: Int = 50): RecentlyPlayedResponse? {
@@ -127,25 +128,25 @@ class SpotifyWebApi(private val accessToken: String) {
     // ── Playlists ──
 
     data class PlaylistItem(
-        val id: String,
-        val name: String,
-        val tracks: PlaylistTracksRef?
+        val id: String = "",
+        val name: String = "",
+        val tracks: PlaylistTracksRef? = null
     )
 
-    data class PlaylistTracksRef(val total: Int)
+    data class PlaylistTracksRef(val total: Int = 0)
 
     data class PlaylistsResponse(
-        val items: List<PlaylistItem>,
-        val next: String?
+        val items: List<PlaylistItem>? = null,
+        val next: String? = null
     )
 
     data class PlaylistTracksResponse(
-        val items: List<PlaylistTrackItem>,
-        val next: String?
+        val items: List<PlaylistTrackItem>? = null,
+        val next: String? = null
     )
 
     data class PlaylistTrackItem(
-        val track: SpotifyTrack?
+        val track: SpotifyTrack? = null
     )
 
     suspend fun getMyPlaylists(limit: Int = 50, offset: Int = 0): PlaylistsResponse? {
@@ -170,7 +171,7 @@ class SpotifyWebApi(private val accessToken: String) {
 
         fun addUnique(newTracks: List<SpotifyTrack>) {
             for (t in newTracks) {
-                if (t.id !in seen) {
+                if (t.isValid && t.id !in seen) {
                     seen.add(t.id)
                     tracks.add(t)
                 }
@@ -188,7 +189,7 @@ class SpotifyWebApi(private val accessToken: String) {
                     estimatedTotal += response.total
                     rangeAdded = true
                 }
-                addUnique(response.items)
+                addUnique(response.items ?: emptyList())
                 if (response.next == null) break
                 offset += 50
                 delay(200)
@@ -200,7 +201,7 @@ class SpotifyWebApi(private val accessToken: String) {
         estimatedTotal += 50
         val recent = getRecentlyPlayed(50)
         if (recent != null) {
-            addUnique(recent.items.map { it.track })
+            addUnique(recent.items?.mapNotNull { it.track } ?: emptyList())
         }
         Log.d(TAG, "After recently played: ${tracks.size} unique")
 
@@ -213,7 +214,7 @@ class SpotifyWebApi(private val accessToken: String) {
                 estimatedTotal += response.total
                 savedTotalAdded = true
             }
-            addUnique(response.items.map { it.track })
+            addUnique(response.items?.mapNotNull { it.track } ?: emptyList())
             if (response.next == null) break
             savedOffset += 50
             delay(200)
@@ -225,7 +226,7 @@ class SpotifyWebApi(private val accessToken: String) {
         var plOffset = 0
         while (true) {
             val plResponse = getMyPlaylists(50, plOffset) ?: break
-            allPlaylists.addAll(plResponse.items)
+            allPlaylists.addAll(plResponse.items?.filter { it.id.isNotBlank() } ?: emptyList())
             if (plResponse.next == null) break
             plOffset += 50
             delay(200)
@@ -238,7 +239,7 @@ class SpotifyWebApi(private val accessToken: String) {
             var offset = 0
             while (true) {
                 val ptResponse = getPlaylistTracks(playlist.id, 50, offset) ?: break
-                addUnique(ptResponse.items.mapNotNull { it.track })
+                addUnique(ptResponse.items?.mapNotNull { it.track } ?: emptyList())
                 if (ptResponse.next == null) break
                 offset += 50
                 delay(200)
@@ -253,11 +254,11 @@ class SpotifyWebApi(private val accessToken: String) {
     // ── Search (for character mode — franchise soundtracks) ──
 
     data class SearchTracksResult(
-        val tracks: SearchTracksWrapper?
+        val tracks: SearchTracksWrapper? = null
     )
 
     data class SearchTracksWrapper(
-        val items: List<SpotifyTrack>
+        val items: List<SpotifyTrack>? = null
     )
 
     suspend fun searchTracks(query: String, limit: Int = 10): List<SpotifyTrack> {
@@ -266,7 +267,7 @@ class SpotifyWebApi(private val accessToken: String) {
             "$baseUrl/search?q=$encoded&type=track&limit=$limit",
             SearchTracksResult::class.java
         )
-        return response?.tracks?.items ?: emptyList()
+        return response?.tracks?.items?.filter { it.isValid } ?: emptyList()
     }
 
     suspend fun getAudioFeatures(trackIds: List<String>): List<AudioFeatures> {
