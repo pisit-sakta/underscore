@@ -87,8 +87,8 @@ class SpotifyAuth(private val context: Context) {
         return if (refreshAccessToken()) {
             prefs.getString(KEY_ACCESS_TOKEN, null)
         } else {
-            Log.w(TAG, "Token refresh failed, returning expired token as last resort")
-            token
+            Log.w(TAG, "Token refresh failed, token is expired")
+            null
         }
     }
 

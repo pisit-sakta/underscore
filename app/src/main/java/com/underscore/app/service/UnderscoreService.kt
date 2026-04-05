@@ -478,7 +478,7 @@ class UnderscoreService : LifecycleService() {
         val token = spotifyAuth.getValidAccessToken()
         if (token == null) {
             AppLog.w(TAG, "No Spotify access token — library analysis skipped (user not logged in or token expired)")
-            _libraryStatus.value = "No Spotify token"
+            _libraryStatus.value = "Spotify token expired — disconnect and reconnect"
             return
         }
 
