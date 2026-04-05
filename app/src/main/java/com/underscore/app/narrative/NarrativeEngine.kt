@@ -382,7 +382,6 @@ Return JSON with:
         }
     }
 
-    /** Strip markdown code fences that LLMs sometimes wrap around JSON. */
     /**
      * Try multiple search strategies to find a track on Spotify.
      * LLM-generated search queries are often too specific or use wrong naming.
