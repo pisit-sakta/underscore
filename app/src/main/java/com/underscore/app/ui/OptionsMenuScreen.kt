@@ -12,8 +12,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,6 +33,8 @@ fun OptionsMenuScreen(
     franchiseSummary: String,
     moodSummary: String,
     dramaSummary: String,
+    poolMode: String,
+    onPoolModeChanged: (String) -> Unit,
     onSettingsClick: () -> Unit,
     onCharacterClick: () -> Unit,
     onFranchiseClick: () -> Unit,
@@ -87,6 +94,45 @@ fun OptionsMenuScreen(
             subtitle = dramaSummary,
             onClick = onDramaClick
         )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Pool mode toggle
+        var isOmakase by remember { mutableStateOf(poolMode == "omakase") }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (isOmakase) "Omakase" else "My Music",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = if (isOmakase)
+                        "Discovery mode — includes songs you might like"
+                    else
+                        "Only songs you've actually listened to",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 14.sp
+                )
+            }
+            Switch(
+                checked = isOmakase,
+                onCheckedChange = {
+                    isOmakase = it
+                    onPoolModeChanged(if (it) "omakase" else "confirmed")
+                }
+            )
+        }
     }
 }
 

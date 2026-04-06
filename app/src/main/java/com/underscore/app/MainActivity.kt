@@ -260,6 +260,8 @@ class MainActivity : ComponentActivity() {
                             moodSummary = userPrefs.getActiveMood()?.ifBlank { null }
                                 ?: "No active vibe",
                             dramaSummary = "${userPrefs.dramaScale} — ${DramaScale.getDisplayName(userPrefs.dramaScale, userPrefs.foodAnalogyMode)}",
+                            poolMode = userPrefs.poolMode,
+                            onPoolModeChanged = { userPrefs.poolMode = it },
                             onSettingsClick = { currentScreen = AppScreen.Settings },
                             onCharacterClick = { currentScreen = AppScreen.Character },
                             onFranchiseClick = { currentScreen = AppScreen.Franchise },
