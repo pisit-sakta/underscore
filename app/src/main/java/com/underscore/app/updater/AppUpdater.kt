@@ -60,20 +60,13 @@ class AppUpdater(private val context: Context) {
         private const val API_URL = "https://api.github.com/repos/$REPO/releases/latest"
         private const val PREFS_NAME = "underscore_updater"
         private const val KEY_DISMISSED_BUILD = "dismissed_build"
-        const val GITHUB_TOKEN = "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"
+        // Token revoked by GitHub secret scanning — public repo doesn't need auth anyway
+        const val GITHUB_TOKEN = ""
     }
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(5, TimeUnit.MINUTES)
-        .build()
-
-    // Separate client for downloads — no auto-redirect so auth header isn't dropped
-    private val downloadClient = OkHttpClient.Builder()
-        .connectTimeout(30, TimeUnit.SECONDS)
-        .readTimeout(5, TimeUnit.MINUTES)
-        .followRedirects(false)
-        .followSslRedirects(false)
         .build()
     private val gson = Gson()
     private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -97,15 +90,17 @@ class AppUpdater(private val context: Context) {
 
     suspend fun checkForUpdate(): UpdateInfo? = withContext(Dispatchers.IO) {
         try {
-            val request = Request.Builder()
+            // Public repo — no auth needed
+            val requestBuilder = Request.Builder()
                 .url(API_URL)
                 .addHeader("Accept", "application/vnd.github.v3+json")
-                .addHeader("Authorization", "token $GITHUB_TOKEN")
-                .build()
+            if (GITHUB_TOKEN.isNotBlank()) {
+                requestBuilder.addHeader("Authorization", "token $GITHUB_TOKEN")
+            }
 
-            val response = client.newCall(request).execute()
+            val response = client.newCall(requestBuilder.build()).execute()
             if (!response.isSuccessful) {
-                Log.w(TAG, "GitHub API returned ${response.code}")
+                Log.e(TAG, "GitHub API returned ${response.code} — update check failed")
                 return@withContext null
             }
 
@@ -132,14 +127,14 @@ class AppUpdater(private val context: Context) {
                 return@withContext null
             }
 
-            // Find the APK asset
+            // Find the APK asset — use browser download URL (works for public repos)
             val apk = release.assets.firstOrNull { it.name.endsWith(".apk") }
                 ?: return@withContext null
 
             UpdateInfo(
                 buildNumber = remoteBuild,
                 releaseName = release.name,
-                downloadUrl = apk.url,  // Use API URL, not browser URL (private repo)
+                downloadUrl = apk.browserDownloadUrl,  // Direct download — public repo
                 fileSize = apk.size
             )
         } catch (e: Exception) {
@@ -153,9 +148,8 @@ class AppUpdater(private val context: Context) {
     }
 
     /**
-     * Download APK with auth token and progress tracking, then trigger install.
-     * Uses OkHttp instead of DownloadManager because private repo assets
-     * need the Authorization header (DownloadManager can't do that).
+     * Download APK and trigger install.
+     * Uses browserDownloadUrl which is a direct download for public repos.
      */
     suspend fun downloadAndInstall(update: UpdateInfo) = withContext(Dispatchers.IO) {
         val fileName = "underscore-${update.buildNumber}.apk"
@@ -170,39 +164,12 @@ class AppUpdater(private val context: Context) {
 
             val file = File(dir, fileName)
 
-            // Download via GitHub API asset URL (private repo needs auth)
-            // Step 1: Hit API URL with auth — GitHub returns 302 to a signed S3 URL
-            val apiRequest = Request.Builder()
+            // Direct download — browserDownloadUrl works for public repos without auth
+            val request = Request.Builder()
                 .url(update.downloadUrl)
-                .addHeader("Authorization", "token $GITHUB_TOKEN")
-                .addHeader("Accept", "application/octet-stream")
                 .build()
 
-            val redirectResponse = downloadClient.newCall(apiRequest).execute()
-
-            // Step 2: Follow the redirect to the signed URL (no auth needed)
-            val actualUrl = if (redirectResponse.code in 301..302) {
-                redirectResponse.header("Location") ?: run {
-                    _downloadProgress.value = DownloadProgress(DownloadState.FAILED, error = "No redirect URL")
-                    return@withContext
-                }
-            } else if (redirectResponse.isSuccessful) {
-                // Somehow got the file directly — unlikely but handle it
-                null
-            } else {
-                val error = "Download failed: HTTP ${redirectResponse.code}"
-                Log.e(TAG, error)
-                _downloadProgress.value = DownloadProgress(DownloadState.FAILED, error = error)
-                return@withContext
-            }
-
-            val response = if (actualUrl != null) {
-                redirectResponse.close()
-                val dlRequest = Request.Builder().url(actualUrl).build()
-                client.newCall(dlRequest).execute()
-            } else {
-                redirectResponse
-            }
+            val response = client.newCall(request).execute()
 
             if (!response.isSuccessful) {
                 val error = "Download failed: HTTP ${response.code}"

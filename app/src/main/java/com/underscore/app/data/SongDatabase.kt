@@ -76,7 +76,7 @@ interface TaggedSongDao {
     @Query("SELECT spotifyUri FROM tagged_songs WHERE lastPlayedAt > :since ORDER BY lastPlayedAt DESC")
     suspend fun getRecentlyPlayedUris(since: Long): List<String>
 
-    @Query("SELECT * FROM tagged_songs WHERE source IN ('top', 'recent', 'saved')")
+    @Query("SELECT * FROM tagged_songs WHERE source IN ('top', 'recent')")
     suspend fun getConfirmedListens(): List<TaggedSong>
 
     @Query("DELETE FROM tagged_songs")

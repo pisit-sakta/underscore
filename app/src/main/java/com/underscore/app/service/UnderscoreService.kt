@@ -41,7 +41,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.filter
@@ -247,7 +246,7 @@ class UnderscoreService : LifecycleService() {
 
                 classifiedScenes
                     .distinctUntilChangedBy { it.classification }
-                    .collectLatest { scene ->
+                    .collect { scene ->
                         val classification = scene.classification
                         AppLog.d(TAG, "Scene: $classification (${scene.minutesInScene}min)")
                         _currentScene.value = classification
@@ -432,9 +431,9 @@ class UnderscoreService : LifecycleService() {
     }
 
     private fun isUrgentShift(from: SceneClassification, to: SceneClassification): Boolean {
-        // Only a sprint (ACTIVE) warrants interrupting a song mid-play.
-        // Everything else queues for track end — let songs finish.
-        return to == SceneClassification.ACTIVE
+        // Never interrupt a song mid-play. All scene changes queue for track end.
+        // The conductor lets songs finish — no exceptions.
+        return false
     }
 
     private fun handleSkip() {

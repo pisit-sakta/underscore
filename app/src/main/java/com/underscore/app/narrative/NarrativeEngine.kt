@@ -93,9 +93,17 @@ class NarrativeEngine(
         val allSongs = if (poolMode == "omakase") {
             db.taggedSongDao().getAll()
         } else {
-            // "confirmed" — only songs the user has definitely listened to
+            // "confirmed" — only songs the user has actually played (top tracks + recently played).
+            // No fallback to full library — if user chose My Music, respect it.
             val confirmed = db.taggedSongDao().getConfirmedListens()
-            if (confirmed.size >= 3) confirmed else db.taggedSongDao().getAll() // fallback if too few
+            if (confirmed.isNotEmpty()) {
+                AppLog.d(TAG, "Pool: confirmed (${confirmed.size} songs from top/recent)")
+                confirmed
+            } else {
+                // No source-tagged songs yet (pre-migration data). Use all until re-analyzed.
+                AppLog.w(TAG, "Pool: no confirmed songs found — library needs re-analysis with source tracking")
+                db.taggedSongDao().getAll()
+            }
         }
 
         if (allSongs.size < 3) {
