@@ -66,7 +66,8 @@ class NarrativeEngine(
         customMood: String? = null,
         characterProfile: CharacterProfile? = null,
         franchiseProfile: FranchiseProfile? = null,
-        spotifyApi: SpotifyWebApi? = null
+        spotifyApi: SpotifyWebApi? = null,
+        poolMode: String = "confirmed"
     ): SongSelection {
         // ── CHARACTER MODE: LLM picks franchise soundtrack, search Spotify ──
         if (characterProfile != null && spotifyApi != null && llmProvider.isConfigured) {
@@ -89,7 +90,13 @@ class NarrativeEngine(
         }
 
         // ── PROTAGONIST MODE: pick from user's analyzed library ──
-        val allSongs = db.taggedSongDao().getAll()
+        val allSongs = if (poolMode == "omakase") {
+            db.taggedSongDao().getAll()
+        } else {
+            // "confirmed" — only songs the user has definitely listened to
+            val confirmed = db.taggedSongDao().getConfirmedListens()
+            if (confirmed.size >= 3) confirmed else db.taggedSongDao().getAll() // fallback if too few
+        }
 
         if (allSongs.size < 3) {
             AppLog.d(TAG, "Library not analyzed yet (${allSongs.size} songs), using fallback selector")

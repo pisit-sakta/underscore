@@ -36,7 +36,9 @@ data class TaggedSong(
     val lastPlayedAt: Long = 0,
     // Sprint 2: learning feedback
     @ColumnInfo(defaultValue = "0") val skipCount: Int = 0,
-    @ColumnInfo(defaultValue = "0") val boostCount: Int = 0
+    @ColumnInfo(defaultValue = "0") val boostCount: Int = 0,
+    // Source: "top", "recent", "saved", "playlist", "recommendation", or "library" (legacy)
+    @ColumnInfo(defaultValue = "library") val source: String = "library"
 )
 
 @Dao
@@ -73,6 +75,9 @@ interface TaggedSongDao {
 
     @Query("SELECT spotifyUri FROM tagged_songs WHERE lastPlayedAt > :since ORDER BY lastPlayedAt DESC")
     suspend fun getRecentlyPlayedUris(since: Long): List<String>
+
+    @Query("SELECT * FROM tagged_songs WHERE source IN ('top', 'recent', 'saved')")
+    suspend fun getConfirmedListens(): List<TaggedSong>
 
     @Query("DELETE FROM tagged_songs")
     suspend fun deleteAll()
@@ -165,6 +170,12 @@ interface KnownLocationDao {
 
 // ─── Database ──────────────────────────────────────────
 
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE tagged_songs ADD COLUMN source TEXT NOT NULL DEFAULT 'library'")
+    }
+}
+
 val MIGRATION_2_3 = object : Migration(2, 3) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("""
@@ -235,7 +246,7 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
 
 @Database(
     entities = [TaggedSong::class, SceneHistoryEntry::class, KnownLocation::class, CharacterProfile::class],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class SongDatabase : RoomDatabase() {
@@ -255,7 +266,7 @@ abstract class SongDatabase : RoomDatabase() {
                     SongDatabase::class.java,
                     "underscore_songs"
                 )
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { INSTANCE = it }
             }

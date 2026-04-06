@@ -137,7 +137,8 @@ class LibraryAnalyzer(
                     culturalContext = result.cultural_context,
                     energy = features?.energy ?: 0.5f,
                     valence = features?.valence ?: 0.5f,
-                    tempo = features?.tempo ?: 120f
+                    tempo = features?.tempo ?: 120f,
+                    source = track.source
                 )
             }
         } catch (e: Exception) {
@@ -179,7 +180,8 @@ class LibraryAnalyzer(
                 culturalContext = "",
                 energy = energy,
                 valence = valence,
-                tempo = features?.tempo ?: 120f
+                tempo = features?.tempo ?: 120f,
+                source = track.source
             )
         }
     }

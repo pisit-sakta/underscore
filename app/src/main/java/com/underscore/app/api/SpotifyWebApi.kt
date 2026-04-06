@@ -20,6 +20,8 @@ data class SpotifyTrack(
     val artistName: String get() = artists?.firstOrNull()?.name ?: "Unknown"
     val albumName: String get() = album?.name ?: "Unknown"
     val isValid: Boolean get() = id.isNotBlank() && uri.isNotBlank()
+    /** Set by getAllUserTracks() — not from JSON. Values: "top", "recent", "saved", "playlist" */
+    @Transient var source: String = "library"
 }
 
 data class SpotifyArtist(val id: String = "", val name: String = "")
@@ -179,7 +181,7 @@ class SpotifyWebApi(private val accessToken: String) {
             onProgress(tracks.size, estimatedTotal)
         }
 
-        // 1. Top tracks across all time ranges
+        // 1. Top tracks across all time ranges — definitely listened to
         for (range in listOf("short_term", "medium_term", "long_term")) {
             var offset = 0
             var rangeAdded = false
@@ -189,7 +191,9 @@ class SpotifyWebApi(private val accessToken: String) {
                     estimatedTotal += response.total
                     rangeAdded = true
                 }
-                addUnique(response.items ?: emptyList())
+                val items = response.items ?: emptyList()
+                items.forEach { it.source = "top" }
+                addUnique(items)
                 if (response.next == null) break
                 offset += 50
                 delay(400)
@@ -197,15 +201,17 @@ class SpotifyWebApi(private val accessToken: String) {
         }
         Log.d(TAG, "After top tracks: ${tracks.size} unique")
 
-        // 2. Recently played
+        // 2. Recently played — definitely listened to
         estimatedTotal += 50
         val recent = getRecentlyPlayed(50)
         if (recent != null) {
-            addUnique(recent.items?.mapNotNull { it.track } ?: emptyList())
+            val items = recent.items?.mapNotNull { it.track } ?: emptyList()
+            items.forEach { it.source = "recent" }
+            addUnique(items)
         }
         Log.d(TAG, "After recently played: ${tracks.size} unique")
 
-        // 3. Liked songs (inline pagination so progress updates per page)
+        // 3. Liked songs — user deliberately saved, strong signal
         var savedOffset = 0
         var savedTotalAdded = false
         while (true) {
@@ -214,7 +220,9 @@ class SpotifyWebApi(private val accessToken: String) {
                 estimatedTotal += response.total
                 savedTotalAdded = true
             }
-            addUnique(response.items?.mapNotNull { it.track } ?: emptyList())
+            val items = response.items?.mapNotNull { it.track } ?: emptyList()
+            items.forEach { it.source = "saved" }
+            addUnique(items)
             if (response.next == null) break
             savedOffset += 50
             delay(400)
@@ -239,7 +247,9 @@ class SpotifyWebApi(private val accessToken: String) {
             var offset = 0
             while (true) {
                 val ptResponse = getPlaylistTracks(playlist.id, 50, offset) ?: break
-                addUnique(ptResponse.items?.mapNotNull { it.track } ?: emptyList())
+                val items = ptResponse.items?.mapNotNull { it.track } ?: emptyList()
+                items.forEach { it.source = "playlist" }
+                addUnique(items)
                 if (ptResponse.next == null) break
                 offset += 50
                 delay(400)

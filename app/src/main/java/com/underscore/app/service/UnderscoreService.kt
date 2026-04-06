@@ -381,7 +381,8 @@ class UnderscoreService : LifecycleService() {
             customMood = userPrefs.getActiveMood(),
             characterProfile = characterProfile,
             franchiseProfile = franchiseProfile,
-            spotifyApi = spotifyApi
+            spotifyApi = spotifyApi,
+            poolMode = userPrefs.poolMode
         )
 
         AppLog.d(TAG, "Selected: ${selection.title} by ${selection.artist}")
@@ -431,15 +432,9 @@ class UnderscoreService : LifecycleService() {
     }
 
     private fun isUrgentShift(from: SceneClassification, to: SceneClassification): Boolean {
-        val stationaryTypes = setOf(
-            SceneClassification.MORNING_STATIONARY,
-            SceneClassification.DAYTIME_STATIONARY,
-            SceneClassification.EVENING_STATIONARY,
-            SceneClassification.NIGHT_STATIONARY
-        )
-        if (from in stationaryTypes && to == SceneClassification.TRANSIT) return true
-        if (to == SceneClassification.ACTIVE) return true
-        return false
+        // Only a sprint (ACTIVE) warrants interrupting a song mid-play.
+        // Everything else queues for track end — let songs finish.
+        return to == SceneClassification.ACTIVE
     }
 
     private fun handleSkip() {

@@ -28,6 +28,7 @@ class UserPreferences(context: Context) {
         private const val KEY_ACTIVE_CHARACTER = "active_character_name"
         private const val KEY_FRANCHISE_MODE = "franchise_immersion_enabled"
         private const val KEY_FRANCHISE_JSON = "active_franchise_json"
+        private const val KEY_POOL_MODE = "pool_mode"
         // Bump this when scopes change to force re-login
         const val CURRENT_SCOPE_VERSION = 3
     }
@@ -133,6 +134,11 @@ class UserPreferences(context: Context) {
     var activeCharacterName: String
         get() = prefs.getString(KEY_ACTIVE_CHARACTER, "") ?: ""
         set(value) { prefs.edit().putString(KEY_ACTIVE_CHARACTER, value).apply() }
+
+    // ── Pool Mode ── "confirmed" = only songs user has listened to, "omakase" = discovery
+    var poolMode: String
+        get() = prefs.getString(KEY_POOL_MODE, "confirmed") ?: "confirmed"
+        set(value) { prefs.edit().putString(KEY_POOL_MODE, value).apply() }
 
     // ── Franchise Immersion ──
     var franchiseImmersionEnabled: Boolean
